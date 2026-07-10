@@ -579,9 +579,9 @@
   function footer() {
     var cols = [
       { title:'ค้นหาที่ดิน', links:['ที่ดินทั้งหมด','ที่ดินติดคลอง','ที่ดินราคาถูก','ที่ดินพร้อมโอน'] },
-      { title:'ลงขายที่ดิน', links:['ลงประกาศฟรี','แพ็กเกจ','คู่มือผู้ขาย','สำหรับนายหน้า'] },
-      { title:'คู่มือ', links:['คู่มือผู้ซื้อ','เช็กโฉนด','ขั้นตอนโอน','ประเมินราคา'] },
-      { title:'ช่วยเหลือ', links:['ศูนย์ช่วยเหลือ','ติดต่อเรา','รายงานประกาศ','คำถามที่พบบ่อย'] }
+      { title:'บริการของเรา', links:['คัดเลือกที่ดิน','ตรวจสอบเอกสาร','ประเมินราคาเบื้องต้น','ให้คำปรึกษาฟรี'] },
+      { title:'พื้นที่ให้บริการ', links:['ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ'] },
+      { title:'ติดต่อทรายทองพัฒนา', links:['โทร 097-428-7891','Facebook ทรายทองพัฒนา','นัดชมที่ดิน','สอบถามข้อมูลแปลง'] }
     ].map(function (c) {
       var links = c.links.map(function (lk) { return '<a href="#" class="foot-link" style="font-size:13px;color:rgba(255,255,255,.62)">' + esc(lk) + '</a>'; }).join('');
       return '<div><div style="font-size:13.5px;font-weight:600;color:#fff;margin-bottom:14px">' + esc(c.title) + '</div><div style="display:flex;flex-direction:column;gap:9px">' + links + '</div></div>';
