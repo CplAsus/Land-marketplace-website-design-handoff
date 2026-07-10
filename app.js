@@ -50,6 +50,51 @@
   }
   function persistReviews(list) { try { localStorage.setItem('ttp_reviews_v2', JSON.stringify(list)); } catch (e) {} }
 
+  function remoteListing(row) {
+    return {
+      id: row.id,
+      title: row.title,
+      district: row.district,
+      province: row.province || 'ปทุมธานี',
+      img: (row.images || [])[0] || '',
+      images: row.images || [],
+      price: Number(row.price),
+      rai: Number(row.rai),
+      sizeText: row.size_text,
+      deed: row.deed || 'โปรดสอบถามผู้ขาย',
+      owner: row.owner_name || 'ทรายทองพัฒนา',
+      verified: !!row.verified,
+      ready: !!row.transfer_fee_free,
+      road: !!row.road,
+      water: !!row.water,
+      power: !!row.power,
+      purposes: row.purposes || [],
+      tags: row.tags || [],
+      dim: row.dimensions || '-',
+      lat: row.latitude == null ? null : Number(row.latitude),
+      lng: row.longitude == null ? null : Number(row.longitude),
+      highlights: row.highlights || [],
+      nearby: row.nearby || [],
+      pin: { x: 50, y: 45 }
+    };
+  }
+
+  function loadRemoteListings() {
+    var cfg = window.SUPABASE_CONFIG;
+    if (!cfg || !cfg.url || !cfg.publishableKey) return;
+    var endpoint = cfg.url + '/rest/v1/land_listings?published=eq.true&select=*&order=sort_order.desc,created_at.desc';
+    fetch(endpoint, {
+      headers: { apikey: cfg.publishableKey, Authorization: 'Bearer ' + cfg.publishableKey }
+    }).then(function (res) {
+      if (!res.ok) throw new Error('Unable to load listings');
+      return res.json();
+    }).then(function (rows) {
+      if (Array.isArray(rows) && rows.length) set({ listings: rows.map(remoteListing), activeId: rows[0].id });
+    }).catch(function () {
+      // Keep the embedded verified listing available if the backend is temporarily offline.
+    });
+  }
+
   /* ------------------------------------------------------------------ *
    * Seed data
    * ------------------------------------------------------------------ */
@@ -584,7 +629,7 @@
           '</div>' +
           cols +
         '</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:22px;font-size:12.5px;color:rgba(255,255,255,.5);flex-wrap:wrap;gap:12px"><span>© 2026 ทรายทองพัฒนา · ซื้อขายที่ดินปทุมธานี สายคลอง</span><span>ควรตรวจสอบข้อมูลและเอกสารสิทธิ์ก่อนทำสัญญา</span></div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:22px;font-size:12.5px;color:rgba(255,255,255,.5);flex-wrap:wrap;gap:12px"><span>© 2026 ทรายทองพัฒนา · ซื้อขายที่ดินปทุมธานี สายคลอง</span><span>ควรตรวจสอบข้อมูลและเอกสารสิทธิ์ก่อนทำสัญญา · <a href="admin.html" style="color:rgba(255,255,255,.5)">สำหรับผู้ดูแล</a></span></div>' +
       '</div>' +
     '</footer>';
   }
@@ -856,4 +901,5 @@
   state.listings = loadListings();
   state.reviews = loadReviews();
   render();
+  loadRemoteListings();
 })();
