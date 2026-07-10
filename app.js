@@ -58,6 +58,7 @@
       province: row.province || 'ปทุมธานี',
       img: (row.images || [])[0] || '',
       images: row.images || [],
+      video: row.video_url || '',
       price: Number(row.price),
       rai: Number(row.rai),
       sizeText: row.size_text,
