@@ -69,7 +69,7 @@
       '<div class="field"><label>สถานะ</label><select name="status">' + ['draft','available','reserved','sold'].map(function(s){return '<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+statusText(s)+'</option>';}).join('') + '</select></div>' + field('ลำดับการแสดง','sort_order',x.sort_order,'number',false) +
       '<div class="field span-2"><label>รูปที่ดิน (เลือกได้หลายรูป รูปแรกเป็นภาพหลัก)</label><input name="image_files" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="images-preview">' + (x.images||[]).map(function(i){return '<img src="'+esc(i)+'" alt="">';}).join('') + '</div></div>' +
       '<div class="checks span-2">' + check('road','ติดถนน',x.road) + check('water','มีน้ำ',x.water) + check('power','มีไฟฟ้า',x.power) + check('verified','ตรวจสอบแล้ว',x.verified) + check('transfer_fee_free','ฟรีค่าโอน',x.transfer_fee_free) + check('published','เผยแพร่ให้ลูกค้าเห็น',x.published) + '</div></div>' +
-      '<div id="form-message"></div><div class="form-actions"><button type="button" id="cancel" class="btn btn-light">ยกเลิก</button><button class="btn btn-primary">บันทึกข้อมูล</button></div></form>';
+      '<div id="form-message"></div><div class="form-actions"><button type="button" id="cancel" class="btn btn-light">ยกเลิก</button><button type="submit" class="btn btn-primary">บันทึกข้อมูล</button></div></form>';
     document.getElementById('back').onclick=panelView; document.getElementById('cancel').onclick=panelView;
     document.getElementById('listing-form').addEventListener('submit', saveListing);
   }
@@ -91,7 +91,7 @@
   }
 
   async function saveListing(e) {
-    e.preventDefault(); var form=e.target, btn=form.querySelector('[type=submit]'), msg=document.getElementById('form-message'); btn.disabled=true; msg.innerHTML='<div class="success">กำลังบันทึก…</div>';
+    e.preventDefault(); var form=e.target, btn=form.querySelector('button[type="submit"]'), msg=document.getElementById('form-message'); if(btn) btn.disabled=true; msg.innerHTML='<div class="success">กำลังบันทึก…</div>';
     try {
       var f=new FormData(form), id=f.get('id'), old=listings.find(function(x){return x.id===id;}), images=(old&&old.images)||[];
       var files=form.elements.image_files.files; if(files.length) images=images.concat(await uploadImages(files));
@@ -99,7 +99,7 @@
       var row={slug:(old&&old.slug)||('land-'+Date.now()),title:f.get('title').trim(),district:f.get('district').trim(),province:f.get('province').trim(),price:Number(f.get('price')),rai:Number(f.get('rai')),size_text:f.get('size_text').trim(),deed:f.get('deed').trim(),owner_name:f.get('owner_name').trim(),dimensions:f.get('dimensions').trim(),latitude:f.get('latitude')?Number(f.get('latitude')):null,longitude:f.get('longitude')?Number(f.get('longitude')):null,images:images,tags:list(f.get('tags')),purposes:list(f.get('purposes')),highlights:list(f.get('highlights')),nearby:nearby,road:f.has('road'),water:f.has('water'),power:f.has('power'),verified:f.has('verified'),transfer_fee_free:f.has('transfer_fee_free'),published:f.has('published'),status:f.get('status'),sort_order:Number(f.get('sort_order')||0)};
       var result=id?await client.from('land_listings').update(row).eq('id',id):await client.from('land_listings').insert(row);
       if(result.error) throw result.error; await loadListings();
-    } catch(err){btn.disabled=false;msg.innerHTML='<div class="error">บันทึกไม่สำเร็จ: '+esc(err.message)+'</div>';}
+    } catch(err){if(btn) btn.disabled=false;msg.innerHTML='<div class="error">บันทึกไม่สำเร็จ: '+esc(err.message)+'</div>';}
   }
 
   async function removeListing(id) {
