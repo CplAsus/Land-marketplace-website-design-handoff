@@ -35,20 +35,20 @@
    * ------------------------------------------------------------------ */
   function loadListings() {
     try {
-      var r = localStorage.getItem('ttp_listings');
+      var r = localStorage.getItem('ttp_listings_v2');
       if (r) { var a = JSON.parse(r); if (Array.isArray(a) && a.length) return a; }
     } catch (e) {}
     return defaults();
   }
-  function persist(list) { try { localStorage.setItem('ttp_listings', JSON.stringify(list)); } catch (e) {} }
+  function persist(list) { try { localStorage.setItem('ttp_listings_v2', JSON.stringify(list)); } catch (e) {} }
   function loadReviews() {
     try {
-      var r = localStorage.getItem('ttp_reviews');
+      var r = localStorage.getItem('ttp_reviews_v2');
       if (r) { var a = JSON.parse(r); if (Array.isArray(a)) return a; }
     } catch (e) {}
     return defaultReviews();
   }
-  function persistReviews(list) { try { localStorage.setItem('ttp_reviews', JSON.stringify(list)); } catch (e) {} }
+  function persistReviews(list) { try { localStorage.setItem('ttp_reviews_v2', JSON.stringify(list)); } catch (e) {} }
 
   /* ------------------------------------------------------------------ *
    * Seed data
@@ -59,39 +59,18 @@
   function defaults() {
     var P = 'ปทุมธานี';
     return [
-      { id:'l1', title:'ที่ดินติดคลอง 7 ธัญบุรี ทำเลเงียบสงบ', district:'ธัญบุรี', province:P, imgId:'photo-1500382017468-9049fed747ef', gid:['photo-1523348837708-15d4a09cfac2','photo-1416879595882-3373a0480b5b'], price:2850000, rai:2.325, sizeText:'2-1-30 ไร่', deed:'โฉนด (นส.4)', owner:'เจ้าของขายเอง', verified:true, ready:true, road:true, water:true, power:true, purposes:['สร้างบ้าน','เกษตร'], tags:['ติดคลอง','ติดถนน','ใกล้เมือง'], dim:'40 × 92 ม.', pin:{x:34,y:44},
-        highlights:['ติดคลองชลประทาน น้ำตลอดปี','หน้ากว้างติดถนนคอนกรีต','ถมแล้วบางส่วน พร้อมปลูกสร้าง','ใกล้ตลาดและโรงเรียน'],
-        nearby:[{name:'ตลาดสี่มุมเมือง',dist:'6 กม.'},{name:'ม.ธรรมศาสตร์ รังสิต',dist:'9 กม.'},{name:'ทางด่วนอุดรรัถยา',dist:'4 กม.'},{name:'รพ.ธัญบุรี',dist:'3 กม.'}] },
-      { id:'l2', title:'แปลงสวย คลองหลวง เหมาะสร้างบ้านสวน', district:'คลองหลวง', province:P, imgId:'photo-1500076656116-558758c991c1', gid:['photo-1444858291040-58f756a3bdd6','photo-1465146344425-f00d5f5c8f07'], price:4200000, rai:5, sizeText:'5-0-0 ไร่', deed:'โฉนด (นส.4)', owner:'นายหน้า', verified:true, ready:true, road:true, water:true, power:true, purposes:['สร้างบ้าน','ลงทุน','รีสอร์ต'], tags:['วิวสวย','ติดถนน'], dim:'80 × 100 ม.', pin:{x:52,y:34},
-        highlights:['ที่ดินสี่เหลี่ยมสวย ไม่มีตาบอด','ไฟฟ้าน้ำประปาพร้อม','เหมาะทำบ้านสวนหรือรีสอร์ตขนาดเล็ก','บรรยากาศร่มรื่น'],
-        nearby:[{name:'ฟิวเจอร์พาร์ค รังสิต',dist:'11 กม.'},{name:'ม.กรุงเทพ',dist:'5 กม.'},{name:'ถนนพหลโยธิน',dist:'3 กม.'},{name:'ตลาดไท',dist:'8 กม.'}] },
-      { id:'l3', title:'ที่ดินเกษตร หนองเสือ ติดคลองระพีพัฒน์', district:'หนองเสือ', province:P, imgId:'photo-1502920917128-1aa500764cbd', gid:['photo-1416879595882-3373a0480b5b','photo-1523348837708-15d4a09cfac2'], price:1650000, rai:8, sizeText:'8-0-0 ไร่', deed:'น.ส.3 ก.', owner:'เจ้าของขายเอง', verified:true, ready:false, road:true, water:true, power:false, purposes:['เกษตร','ลงทุน'], tags:['ติดคลอง','ราคาถูก'], dim:'50 × 256 ม.', pin:{x:66,y:22},
-        highlights:['ติดคลองส่งน้ำ เหมาะทำสวน/นา','ราคาต่อไร่ถูกมาก','เข้าออกสะดวก รถ 6 ล้อเข้าได้','ที่ดินผืนใหญ่ต่อยอดได้'],
-        nearby:[{name:'ตลาดหนองเสือ',dist:'4 กม.'},{name:'สวนสนุกดรีมเวิลด์',dist:'14 กม.'},{name:'คลอง 13',dist:'2 กม.'},{name:'อบต.หนองเสือ',dist:'3 กม.'}] },
-      { id:'l4', title:'ที่ดินติดถนนใหญ่ ลำลูกกา คลอง 4', district:'ลำลูกกา', province:P, imgId:'photo-1472214103451-9374bd1c798e', gid:['photo-1500382017468-9049fed747ef','photo-1441974231531-c6227db76b6e'], price:8500000, rai:3, sizeText:'3-0-0 ไร่', deed:'โฉนด (นส.4)', owner:'นายหน้า', verified:true, ready:true, road:true, water:true, power:true, purposes:['ลงทุน','โกดัง','สร้างบ้าน'], tags:['ติดถนน','ใกล้เมือง','ทำเลทอง'], dim:'60 × 80 ม.', pin:{x:44,y:56},
-        highlights:['ติดถนนลำลูกกา 4 เลน','เหมาะทำโครงการ/โกดัง','ผังเมืองสีส้ม พัฒนาได้หลากหลาย','ใกล้ตลาดและชุมชนหนาแน่น'],
-        nearby:[{name:'ตลาดลำลูกกา คลอง 4',dist:'1 กม.'},{name:'โรบินสัน ลำลูกกา',dist:'7 กม.'},{name:'ทางด่วน',dist:'5 กม.'},{name:'รร.นานาชาติ',dist:'4 กม.'}] },
-      { id:'l5', title:'ที่ดินเปล่า สามโคก วิวทุ่งนา เงียบสงบ', district:'สามโคก', province:P, imgId:'photo-1465146344425-f00d5f5c8f07', gid:['photo-1500076656116-558758c991c1','photo-1502920917128-1aa500764cbd'], price:980000, rai:1.5, sizeText:'1-2-0 ไร่', deed:'น.ส.3 ก.', owner:'เจ้าของขายเอง', verified:false, ready:false, road:true, water:false, power:true, purposes:['สร้างบ้าน','เกษตร'], tags:['ราคาถูก','วิวสวย'], dim:'30 × 80 ม.', pin:{x:24,y:30},
-        highlights:['ราคาต่ำกว่าล้าน','บรรยากาศทุ่งนาธรรมชาติ','เหมาะปลูกบ้านพักตากอากาศ','เจ้าของขายเองต่อรองได้'],
-        nearby:[{name:'วัดสิงห์ สามโคก',dist:'3 กม.'},{name:'แม่น้ำเจ้าพระยา',dist:'2 กม.'},{name:'ตลาดสามโคก',dist:'5 กม.'},{name:'ถนนปทุมฯ-สามโคก',dist:'1 กม.'}] },
-      { id:'l6', title:'ที่ดินแปลงใหญ่ ลาดหลุมแก้ว เหมาะโครงการ', district:'ลาดหลุมแก้ว', province:P, imgId:'photo-1441974231531-c6227db76b6e', gid:['photo-1472214103451-9374bd1c798e','photo-1444858291040-58f756a3bdd6'], price:15500000, rai:22, sizeText:'22-0-0 ไร่', deed:'โฉนด (นส.4)', owner:'นายหน้า', verified:true, ready:true, road:true, water:true, power:true, purposes:['ลงทุน','โกดัง','รีสอร์ต'], tags:['แปลงใหญ่','ติดถนน'], dim:'120 × 290 ม.', pin:{x:16,y:52},
-        highlights:['ที่ดินผืนใหญ่ 22 ไร่','เหมาะพัฒนาโครงการจัดสรร','ติดถนนลาดยาง 2 ด้าน','ใกล้นิคมอุตสาหกรรม'],
-        nearby:[{name:'นิคมฯ นวนคร',dist:'12 กม.'},{name:'ตลาดลาดหลุมแก้ว',dist:'4 กม.'},{name:'มอเตอร์เวย์',dist:'8 กม.'},{name:'วัดบ่อทอง',dist:'3 กม.'}] },
-      { id:'l7', title:'ที่ดินติดคลองรังสิต เมืองปทุมธานี', district:'เมืองปทุมธานี', province:P, imgId:'photo-1444858291040-58f756a3bdd6', gid:['photo-1465146344425-f00d5f5c8f07','photo-1500382017468-9049fed747ef'], price:6300000, rai:2, sizeText:'2-0-0 ไร่', deed:'โฉนด (นส.4)', owner:'เจ้าของขายเอง', verified:true, ready:true, road:true, water:true, power:true, purposes:['สร้างบ้าน','ลงทุน'], tags:['ติดคลอง','ใกล้เมือง','ทำเลทอง'], dim:'40 × 80 ม.', pin:{x:38,y:38},
-        highlights:['ใจกลางเมืองปทุมธานี','ติดคลองรังสิตประยูรศักดิ์','ใกล้ศาลากลางจังหวัด','เดินทางเข้ากรุงเทพสะดวก'],
-        nearby:[{name:'ศาลากลางปทุมธานี',dist:'2 กม.'},{name:'รพ.ปทุมธานี',dist:'3 กม.'},{name:'เซ็นทรัล เวสต์เกต',dist:'13 กม.'},{name:'ท่าน้ำปทุม',dist:'1 กม.'}] },
-      { id:'l8', title:'ที่ดินสวนผลไม้ หนองเสือ พร้อมโอน', district:'หนองเสือ', province:P, imgId:'photo-1523348837708-15d4a09cfac2', gid:['photo-1502920917128-1aa500764cbd','photo-1472214103451-9374bd1c798e'], price:3400000, rai:6, sizeText:'6-0-0 ไร่', deed:'โฉนด (นส.4)', owner:'นายหน้า', verified:true, ready:true, road:true, water:true, power:true, purposes:['เกษตร','รีสอร์ต'], tags:['ติดคลอง','วิวสวย','พร้อมโอน'], dim:'60 × 160 ม.', pin:{x:60,y:16},
-        highlights:['สวนผลไม้พร้อมเก็บเกี่ยว','ระบบน้ำครบ ติดคลอง','บ้านพักคนสวน 1 หลัง','เหมาะทำโฮมสเตย์/คาเฟ่สวน'],
-        nearby:[{name:'ตลาดน้ำหนองเสือ',dist:'5 กม.'},{name:'คลอง 11',dist:'2 กม.'},{name:'ดรีมเวิลด์',dist:'16 กม.'},{name:'ปั๊ม ปตท.',dist:'3 กม.'}] }
+      { id:'land-khlong-7', title:'ขายที่ดินคลอง 7 ลำลูกกา ถมแล้ว ติดคลองและถนนสาธารณะ', district:'ลำลูกกา', province:P,
+        img:'assets/land-khlong7-cover.png', images:['assets/land-khlong7-cover.png','assets/land-khlong7-aerial-1.png','assets/land-khlong7-aerial-2.png'],
+        price:7500000, rai:1.25, sizeText:'1 ไร่ 1 งาน (500 ตร.ว.)', deed:'โปรดสอบถามผู้ขาย', owner:'ทรายทองพัฒนา', verified:false, ready:true,
+        road:true, water:true, power:true, purposes:['สร้างบ้าน','ลงทุน','โกดัง','ร้านอาหาร'], tags:['ถมแล้ว','ติดคลอง 7','ติดถนน','ฟรีค่าโอน'],
+        dim:'หน้ากว้าง 58.5 × ลึก 34 ม.', lat:14.096229, lng:100.641842, pin:{x:50,y:45},
+        highlights:['ราคา 15,000 บาท/ตร.ว. ขายยกแปลง 7,500,000 บาท','แบ่งขายได้ เริ่มต้น 150 ตร.ว. โปรดสอบถามเงื่อนไข','ถนนสาธารณะหน้าแปลงกว้าง 6 เมตร','เขตชุมชน มีน้ำและไฟฟ้าพร้อม','จากถนนเลียบคลอง 7 ประมาณ 140 เมตร','จากถนนรังสิต-นครนายกประมาณ 4.5 กม.'],
+        nearby:[{name:'โรงเรียนนานาชาติเปิดใหม่',dist:'ประมาณ 1.5 กม.'},{name:'ถนนรังสิต-นครนายก',dist:'ประมาณ 4.5 กม.'},{name:'ถนนลำลูกกา',dist:'ประมาณ 7 กม.'},{name:'ดูโฮมรังสิต',dist:'ใกล้พื้นที่'}] }
     ];
   }
 
   function defaultReviews() {
-    return [
-      {id:'r1', name:'คุณสมชาย วัฒนะกิจ', plot:'ซื้อที่ดินธัญบุรี 2 ไร่', rating:5, avatar:'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=70', text:'ทีมงานดูแลดีมาก พาดูที่จริงและช่วยตรวจเอกสารที่กรมที่ดินให้ครบ โอนกรรมสิทธิ์ราบรื่นไม่มีปัญหาเลย'},
-      {id:'r2', name:'คุณนภา ศรีสุข', plot:'ที่ดินเกษตร หนองเสือ 8 ไร่', rating:5, avatar:'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=70', text:'ซื้อที่ดินทำสวนเกษตรติดคลอง น้ำดีมาก ราคาต่อไร่ถูกกว่าที่อื่น ประทับใจมาก แนะนำเพื่อนๆมาดูต่อแล้ว'},
-      {id:'r3', name:'คุณธนกร เจริญทรัพย์', plot:'ที่ดินลงทุน ลำลูกกา 3 ไร่', rating:4, avatar:'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&q=70', text:'ซื้อเก็บไว้เพื่อลงทุนระยะยาว ทำเลติดถนนใหญ่ มีศักยภาพเติบโต ทีมงานให้คำแนะนำเรื่องผังเมืองดีมาก'}
-    ];
+    return [];
   }
 
   /* ------------------------------------------------------------------ *
@@ -257,7 +236,7 @@
     var v = vmCard(l);
     var badge = '';
     if (l.verified) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.94);color:#1F4A34;font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.12)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>ตรวจสอบแล้ว</span>';
-    if (l.ready) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">พร้อมโอน</span>';
+    if (l.ready) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">ฟรีค่าโอน</span>';
 
     var favSvg = v.isFav
       ? '<svg width="19" height="19" viewBox="0 0 24 24" fill="#C0453B" stroke="#C0453B" stroke-width="1.5"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 1 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"></path></svg>'
@@ -324,10 +303,10 @@
     var featured = state.listings.slice(0, 4).map(landCard).join('');
 
     var trustItems = [
-      { icon: ICON.shield, title:'ตรวจสอบเบื้องต้น', desc:'ทุกประกาศผ่านการตรวจสอบข้อมูลและเอกสารเบื้องต้นก่อนเผยแพร่' },
-      { icon: ICON.doc, title:'เอกสารสิทธิ์ชัดเจน', desc:'แสดงประเภทโฉนด/น.ส.3ก. และสถานะภาระผูกพันอย่างโปร่งใส' },
-      { icon: ICON.phone, title:'ติดต่อผู้ขายได้จริง', desc:'เชื่อมต่อกับเจ้าของหรือนายหน้าที่ยืนยันตัวตนแล้วโดยตรง' },
-      { icon: ICON.flag, title:'รายงานได้ทันที', desc:'ระบบแจ้งประกาศไม่ถูกต้อง พร้อมคู่มือก่อนซื้อที่ดินให้ศึกษา' }
+      { icon: ICON.shield, title:'ข้อมูลจากผู้ขายโดยตรง', desc:'รายละเอียด ราคา และรูปภาพจัดทำจากข้อมูลของทรายทองพัฒนา' },
+      { icon: ICON.doc, title:'ตรวจเอกสารก่อนตัดสินใจ', desc:'สอบถามสำเนาเอกสารสิทธิ์และตรวจสอบกับสำนักงานที่ดินก่อนทำสัญญา' },
+      { icon: ICON.phone, title:'นัดชมแปลงจริง', desc:'โทรนัดหมายกับคุณทรายเพื่อเข้าชมพื้นที่และสอบถามเงื่อนไขล่าสุด' },
+      { icon: ICON.flag, title:'พิกัดชัดเจน', desc:'มีแผนที่และข้อมูลการเดินทางเพื่อช่วยวางแผนเข้าชมพื้นที่' }
     ].map(function (t) {
       return '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:26px 22px">' +
         '<span style="display:flex;width:46px;height:46px;border-radius:12px;background:rgba(235,217,168,.16);align-items:center;justify-content:center;color:#EBD9A8;margin-bottom:16px">' + ic(t.icon) + '</span>' +
@@ -352,13 +331,23 @@
       '</figure>';
     }).join('');
 
+    var reviewSection = state.reviews.length ?
+      '<section style="max-width:1240px;margin:0 auto;padding:70px 24px 20px">' +
+        '<div style="text-align:center;max-width:600px;margin:0 auto 40px">' +
+          '<div style="color:#E3A81E;font-size:13px;font-weight:600;letter-spacing:1px;margin-bottom:10px">รีวิวจากลูกค้าจริง</div>' +
+          '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:30px;font-weight:600;color:#1B2019;margin:0 0 12px">เสียงจากผู้ที่ซื้อที่ดินกับเรา</h2>' +
+          '<p style="color:#8A8F84;font-size:15px;line-height:1.6;margin:0">ประสบการณ์จริงจากลูกค้าที่ซื้อขายที่ดินสายคลอง ปทุมธานี กับทรายทองพัฒนา</p>' +
+        '</div>' +
+        '<div class="grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px">' + reviews + '</div>' +
+      '</section>' : '';
+
     return '<main>' +
       // HERO
       '<section style="position:relative;overflow:hidden;background:#1F4A34">' +
-        '<img src="' + attr(img('photo-1500382017468-9049fed747ef')) + '" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5">' +
+        '<img src="assets/land-khlong7-aerial-1.png" alt="ที่ดินคลอง 7 ลำลูกกา" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5">' +
         '<div style="position:absolute;inset:0;background:linear-gradient(105deg,rgba(23,55,38,.92) 0%,rgba(23,55,38,.6) 48%,rgba(23,55,38,.25) 100%)"></div>' +
         '<div style="position:relative;max-width:1240px;margin:0 auto;padding:76px 24px 92px">' +
-          '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(235,217,168,.16);border:1px solid rgba(235,217,168,.4);color:#EBD9A8;font-size:13px;font-weight:500;padding:7px 14px;border-radius:30px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#7ED9A0"></span>ที่ดินสายคลอง ปทุมธานี · ตรวจสอบเอกสารทุกแปลง</div>' +
+          '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(235,217,168,.16);border:1px solid rgba(235,217,168,.4);color:#EBD9A8;font-size:13px;font-weight:500;padding:7px 14px;border-radius:30px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#7ED9A0"></span>ซื้อขายที่ดินปทุมธานี ราคาถูก สายคลอง by ทรายทองพัฒนา</div>' +
           '<h1 class="hero-h1" style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:52px;line-height:1.18;color:#fff;margin:0 0 18px;max-width:820px;letter-spacing:-.5px">ค้นหาที่ดินที่ใช่<br>สำหรับบ้าน ธุรกิจ และการลงทุน</h1>' +
           '<p style="font-size:18px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:610px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานีและพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
           '<div class="hero-search" style="background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(20,40,28,.28);padding:12px;display:flex;align-items:stretch;gap:2px">' +
@@ -377,7 +366,7 @@
       // FEATURED
       '<section id="featured-listings" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
         '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap">' +
-          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินแนะนำ</h2><p style="margin:0;color:#8A8F84;font-size:14.5px">คัดเลือกแปลงเด่น ตรวจสอบเอกสารเบื้องต้นแล้ว</p></div>' +
+          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินพร้อมขาย</h2><p style="margin:0;color:#8A8F84;font-size:14.5px">ข้อมูล ราคา และรูปภาพจากทรายทองพัฒนา</p></div>' +
           '<button ' + click(scrollFeatured) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:14px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:7px">ดูทั้งหมด<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>' +
         '</div>' +
         '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">' + featured + '</div>' +
@@ -388,22 +377,14 @@
         '<div style="max-width:1240px;margin:0 auto;padding:64px 24px">' +
           '<div style="text-align:center;max-width:640px;margin:0 auto 44px">' +
             '<div style="color:#EBD9A8;font-size:13px;font-weight:600;letter-spacing:1px;margin-bottom:10px">ซื้อขายอย่างมั่นใจ</div>' +
-            '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:32px;font-weight:600;color:#fff;margin:0 0 12px">ความน่าเชื่อถือที่ตรวจสอบได้ทุกขั้นตอน</h2>' +
-            '<p style="color:rgba(255,255,255,.75);font-size:15.5px;line-height:1.6;margin:0;font-weight:300">เราให้ความสำคัญกับความถูกต้องของเอกสารและข้อมูล เพื่อให้การตัดสินใจซื้อที่ดินของคุณปลอดภัยที่สุด</p>' +
+            '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:32px;font-weight:600;color:#fff;margin:0 0 12px">ข้อมูลครบ นัดชมง่าย ติดต่อผู้ขายโดยตรง</h2>' +
+            '<p style="color:rgba(255,255,255,.75);font-size:15.5px;line-height:1.6;margin:0;font-weight:300">ควรตรวจสอบสภาพพื้นที่ เอกสารสิทธิ์ ผังเมือง และภาระผูกพันก่อนวางเงินหรือทำสัญญาทุกครั้ง</p>' +
           '</div>' +
           '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px">' + trustItems + '</div>' +
         '</div>' +
       '</section>' +
 
-      // REVIEWS
-      '<section style="max-width:1240px;margin:0 auto;padding:70px 24px 20px">' +
-        '<div style="text-align:center;max-width:600px;margin:0 auto 40px">' +
-          '<div style="color:#E3A81E;font-size:13px;font-weight:600;letter-spacing:1px;margin-bottom:10px">รีวิวจากลูกค้าจริง</div>' +
-          '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:30px;font-weight:600;color:#1B2019;margin:0 0 12px">เสียงจากผู้ที่ซื้อที่ดินกับเรา</h2>' +
-          '<p style="color:#8A8F84;font-size:15px;line-height:1.6;margin:0">ประสบการณ์จริงจากลูกค้าที่ซื้อขายที่ดินสายคลอง ปทุมธานี กับทรายทองพัฒนา</p>' +
-        '</div>' +
-        '<div class="grid-3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:22px">' + reviews + '</div>' +
-      '</section>' +
+      reviewSection +
     '</main>';
   }
 
@@ -415,7 +396,7 @@
     var hasVideo = !!(a.video && a.video.trim());
     var moreCount = Math.max(0, imgs.length - 3);
 
-    var badges = [a.verified ? 'ตรวจสอบเบื้องต้นแล้ว' : null, a.ready ? 'พร้อมโอน' : null, 'มีเอกสารพร้อมตรวจ'].filter(Boolean)
+    var badges = [a.verified ? 'ตรวจสอบเบื้องต้นแล้ว' : null, a.ready ? 'ฟรีค่าโอน' : null].filter(Boolean)
       .map(function (b) { return '<span style="display:inline-flex;align-items:center;gap:5px;background:#EAF1EB;color:#1F4A34;font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:20px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' + esc(b) + '</span>'; }).join('');
 
     var highlights = (a.highlights || []).map(function (h) { return '<li style="display:flex;align-items:flex-start;gap:9px;font-size:14.5px;color:#4A5047;line-height:1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="2.4" style="flex:none;margin-top:2px"><polyline points="20 6 9 17 4 12"></polyline></svg>' + esc(h) + '</li>'; }).join('');
@@ -423,7 +404,6 @@
     var utils = [
       a.power ? { l:'ไฟฟ้า', i:ICON.bolt } : { l:'ไม่มีไฟฟ้า', i:ICON.bolt },
       a.water ? { l:'น้ำประปา/คลอง', i:ICON.wave } : { l:'ไม่มีน้ำ', i:ICON.wave },
-      { l:'อินเทอร์เน็ต', i:ICON.wifi },
       a.road ? { l:'ถนนเข้าถึง', i:ICON.road } : { l:'ทางเข้าแคบ', i:ICON.road }
     ].map(function (u) { return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E7E3DA;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:500;color:#3B4038">' + ic(u.i) + esc(u.l) + '</div>'; }).join('');
 
@@ -481,6 +461,7 @@
           '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:28px">' + purposes + '</div>' +
           '<h2 style="font-size:19px;font-weight:600;color:#1B2019;margin:0 0 12px">ทำเลและสถานที่ใกล้เคียง</h2>' +
           '<div style="border:1px solid #E7E3DA;border-radius:16px;overflow:hidden;margin-bottom:14px"><iframe title="ทำเลที่ดิน" src="' + attr(mapSrcFor(lat, lng)) + '" style="width:100%;height:360px;border:0;display:block"></iframe></div>' +
+          '<a href="https://goo.gl/maps/5wJ5fqvM26FnhvZa8?g_st=al" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;color:#1F4A34;font-size:14px;font-weight:700;margin:0 0 14px;text-decoration:none">เปิดเส้นทางใน Google Maps ↗</a>' +
           '<ul style="list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">' + nearby + '</ul>' +
         '</div>' +
 
@@ -578,12 +559,18 @@
 
   function footer() {
     var cols = [
-      { title:'ค้นหาที่ดิน', links:['ที่ดินทั้งหมด','ที่ดินติดคลอง','ที่ดินราคาถูก','ที่ดินพร้อมโอน'] },
-      { title:'บริการของเรา', links:['คัดเลือกที่ดิน','ตรวจสอบเอกสาร','ประเมินราคาเบื้องต้น','ให้คำปรึกษาฟรี'] },
-      { title:'พื้นที่ให้บริการ', links:['ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ'] },
-      { title:'ติดต่อทรายทองพัฒนา', links:['โทร 097-428-7891','Facebook ทรายทองพัฒนา','นัดชมที่ดิน','สอบถามข้อมูลแปลง'] }
+      { title:'ประกาศปัจจุบัน', links:['ที่ดินคลอง 7 ลำลูกกา','500 ตารางวา','ถมแล้วพร้อมใช้'] },
+      { title:'เหมาะสำหรับ', links:['สร้างบ้าน','บ้านสวนติดคลอง','โกดัง / ร้านอาหาร'] },
+      { title:'ข้อมูลทำเล', links:['ลำลูกกา ปทุมธานี','ติดคลอง 7','ติดถนนสาธารณะ'] },
+      { title:'ติดต่อทรายทองพัฒนา', links:['โทร 097-428-7891','Facebook ทรายทองพัฒนา','แผนที่สำนักงาน'] }
     ].map(function (c) {
-      var links = c.links.map(function (lk) { return '<a href="#" class="foot-link" style="font-size:13px;color:rgba(255,255,255,.62)">' + esc(lk) + '</a>'; }).join('');
+      var links = c.links.map(function (lk) {
+        var href = '#';
+        if (lk === 'โทร 097-428-7891') href = 'tel:0974287891';
+        else if (lk === 'Facebook ทรายทองพัฒนา') href = 'https://www.facebook.com/saithongptn';
+        else if (lk === 'แผนที่สำนักงาน') href = 'https://www.bing.com/maps/search?q=สำนักงานขาย+ทรายทองพัฒนา%2C+Amphoe+Muang+Pathum+Thani%2C+Thailand';
+        return '<a href="' + attr(href) + '"' + (href.indexOf('http') === 0 ? ' target="_blank" rel="noopener"' : '') + ' class="foot-link" style="font-size:13px;color:rgba(255,255,255,.62)">' + esc(lk) + '</a>';
+      }).join('');
       return '<div><div style="font-size:13.5px;font-weight:600;color:#fff;margin-bottom:14px">' + esc(c.title) + '</div><div style="display:flex;flex-direction:column;gap:9px">' + links + '</div></div>';
     }).join('');
 
@@ -591,13 +578,13 @@
       '<div style="max-width:1240px;margin:0 auto;padding:56px 24px 30px">' +
         '<div class="footer-grid" style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr;gap:30px;padding-bottom:40px;border-bottom:1px solid rgba(255,255,255,.1)">' +
           '<div>' +
-            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:40px;height:40px;border-radius:50%;overflow:hidden;background:#fff;flex:none"><img src="' + LOGO + '" alt="ทรายทองพัฒนา" style="width:100%;height:100%;object-fit:cover;transform:scale(1.05)"></div><div style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:17px;color:#fff">ทรายทองพัฒนา</div></div>' +
-            '<p style="font-size:13.5px;line-height:1.6;margin:0 0 16px;font-weight:300;max-width:280px">ตลาดซื้อขายที่ดินสายคลอง ปทุมธานี ราคาถูก พร้อมบริการตรวจสอบเอกสารและให้คำปรึกษาฟรี</p>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:40px;height:40px;border-radius:50%;overflow:hidden;background:#fff;flex:none"><img src="' + LOGO + '" alt="ทรายทองพัฒนา" style="width:100%;height:100%;object-fit:cover;transform:scale(1.05)"></div><div style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:17px;color:#fff">ซื้อขายที่ดินปทุมธานี ราคาถูก สายคลอง<br><span style="font-size:13px;font-weight:500">by ทรายทองพัฒนา</span></div></div>' +
+            '<p style="font-size:13.5px;line-height:1.6;margin:0 0 16px;font-weight:300;max-width:280px">ข้อมูลที่ดินพร้อมขายในปทุมธานีและพื้นที่สายคลอง นัดชมแปลงจริงและสอบถามรายละเอียดกับคุณทรายโดยตรง</p>' +
             '<div style="display:flex;align-items:center;gap:8px;color:#EBD9A8;font-weight:600;font-size:15px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"></path></svg>097-428-7891 (ทราย)</div>' +
           '</div>' +
           cols +
         '</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:22px;font-size:12.5px;color:rgba(255,255,255,.5);flex-wrap:wrap;gap:12px"><span>© 2026 ทรายทองพัฒนา · ซื้อขายที่ดินปทุมธานี สายคลอง</span><div style="display:flex;gap:20px"><a href="#" style="color:rgba(255,255,255,.55)">Privacy Policy</a><a href="#" style="color:rgba(255,255,255,.55)">Terms &amp; Conditions</a><a href="#" style="color:rgba(255,255,255,.55)">เกี่ยวกับเรา</a></div></div>' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding-top:22px;font-size:12.5px;color:rgba(255,255,255,.5);flex-wrap:wrap;gap:12px"><span>© 2026 ทรายทองพัฒนา · ซื้อขายที่ดินปทุมธานี สายคลอง</span><span>ควรตรวจสอบข้อมูลและเอกสารสิทธิ์ก่อนทำสัญญา</span></div>' +
       '</div>' +
     '</footer>';
   }
@@ -807,16 +794,7 @@
   }
 
   function switcher() {
-    var screens = [{ k:'home', label:'หน้าแรก' }, { k:'detail', label:'รายละเอียด' }].map(function (s) {
-      var activeS = state.page === s.k;
-      return '<button ' + click((function (k) { return function () { go(k); }; })(s.k)) + ' style="border:none;border-radius:24px;padding:9px 17px;font-size:13px;font-weight:600;cursor:pointer;background:' + (activeS ? '#EBD9A8' : 'transparent') + ';color:' + (activeS ? '#1B2019' : 'rgba(255,255,255,.85)') + ';font-family:inherit">' + esc(s.label) + '</button>';
-    }).join('');
-    var adminActive = state.page === 'admin';
-    return '<div style="position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:65;background:rgba(27,32,25,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:30px;padding:6px;display:flex;gap:3px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.3)">' +
-      screens +
-      '<span style="width:1px;height:20px;background:rgba(255,255,255,.2);margin:0 2px"></span>' +
-      '<button ' + click(goAdmin) + ' title="สำหรับเจ้าของเว็บ" style="border:none;border-radius:24px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;background:' + (adminActive ? '#EBD9A8' : 'transparent') + ';color:' + (adminActive ? '#1B2019' : 'rgba(255,255,255,.85)') + ';font-family:inherit;display:flex;align-items:center;gap:6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>จัดการ</button>' +
-    '</div>';
+    return '';
   }
 
   /* ------------------------------------------------------------------ *
