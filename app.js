@@ -244,7 +244,7 @@
   /* ------------------------------------------------------------------ *
    * Render — building blocks
    * ------------------------------------------------------------------ */
-  var LOGO = 'assets/logo.png';
+  var LOGO = 'logo.png';
 
   function vmCard(l) {
     return {
