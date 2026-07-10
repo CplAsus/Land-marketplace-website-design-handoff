@@ -1,0 +1,101 @@
+/* ทรายทองพัฒนา — ตลาดที่ดินปทุมธานี
+   Design system: dark green #1F4A34 (brand/CTA), marigold #E3A81E (secondary),
+   white / beige (#F7F5F0) surfaces. Fonts: Noto Serif Thai (headings) +
+   IBM Plex Sans Thai (body). */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  font-family: 'IBM Plex Sans Thai', system-ui, -apple-system, sans-serif;
+  background: #F7F5F0;
+  color: #1B2019;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button, input, select, textarea { font-family: inherit; }
+
+img { max-width: 100%; }
+
+a { text-decoration: none; }
+
+/* thin scrollbar for modal bodies */
+.thin::-webkit-scrollbar { width: 8px; }
+.thin::-webkit-scrollbar-thumb { background: #D9D4C8; border-radius: 8px; }
+
+/* ---- hover interactions (ported from prototype's style-hover) ---- */
+.hov-soft { transition: background .15s; }
+.hov-soft:hover { background: #F7F5F0; }
+
+.btn-search { transition: background .15s; }
+.btn-search:hover { background: #C08A16; }
+
+.btn-dark { transition: background .15s; }
+.btn-dark:hover { background: #173726; }
+
+.btn-outline { transition: border-color .15s, color .15s; }
+.btn-outline:hover { border-color: #1F4A34; }
+
+.btn-marigold { transition: background .15s; }
+.btn-marigold:hover { background: #C08A16; }
+
+.btn-fb { transition: filter .15s; }
+.btn-fb:hover { filter: brightness(.95); }
+
+.btn-fav { transition: border-color .15s, color .15s; }
+.btn-fav:hover { border-color: #C0453B; color: #C0453B; }
+
+.btn-danger-h { transition: border-color .15s, color .15s; }
+.btn-danger-h:hover { border-color: #C0453B; color: #C0453B; }
+
+.btn-del { transition: background .15s; }
+.btn-del:hover { background: #FBEDEB; }
+
+.upload-drop { transition: border-color .15s, background .15s; }
+.upload-drop:hover { border-color: #1F4A34; background: #F7F5F0; }
+
+.foot-link { transition: color .15s; }
+.foot-link:hover { color: #EBD9A8; }
+
+/* land card lift */
+.land-card {
+  display: flex; flex-direction: column; height: 100%; background: #fff;
+  border: 1px solid #E7E3DA; border-radius: 16px; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(31,74,52,.05); cursor: pointer;
+  transition: box-shadow .2s, transform .2s;
+}
+.land-card:hover { box-shadow: 0 12px 30px rgba(31,74,52,.13); transform: translateY(-3px); }
+
+.compare-toggle { transition: border-color .15s, color .15s; }
+.compare-toggle:hover { border-color: #1F4A34; color: #1F4A34; }
+
+/* clamp helper */
+.clamp2 {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* responsive */
+@media (max-width: 980px) {
+  .hero-search { flex-wrap: wrap; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+  .detail-grid { grid-template-columns: 1fr !important; }
+  .detail-cta { position: static !important; }
+  .footer-grid { grid-template-columns: 1fr 1fr !important; }
+  .hl-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 620px) {
+  .grid-4 { grid-template-columns: 1fr !important; }
+  .grid-3 { grid-template-columns: 1fr !important; }
+  .spec-grid { grid-template-columns: 1fr 1fr !important; }
+  .gallery { grid-template-columns: 1fr !important; grid-template-rows: auto !important; height: auto !important; }
+  .gallery > * { height: 220px; }
+  .hero-h1 { font-size: 34px !important; }
+  .footer-grid { grid-template-columns: 1fr !important; }
+  .admin-row, .admin-head { grid-template-columns: 48px 1fr auto !important; }
+  .admin-hide { display: none !important; }
+}
