@@ -94,6 +94,9 @@ a { text-decoration: none; }
   .spec-grid { grid-template-columns: 1fr 1fr !important; }
   .gallery { grid-template-columns: 1fr !important; grid-template-rows: auto !important; height: auto !important; }
   .gallery > * { height: 220px; }
+  .gallery-single > * { height: auto !important; }
+  .gallery-single img { height: auto !important; max-height: 75vh !important; }
+  .gallery-two { grid-template-columns: 1fr !important; height: auto !important; }
   .hero-h1 { font-size: 34px !important; }
   .footer-grid { grid-template-columns: 1fr !important; }
   .admin-row, .admin-head { grid-template-columns: 48px 1fr auto !important; }

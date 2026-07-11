@@ -136,10 +136,10 @@
     return 'https://www.openstreetmap.org/export/embed.html?bbox=' + bbox + '&layer=mapnik&marker=' + lat.toFixed(4) + ',' + lng.toFixed(4);
   }
   function galleryImgs(l) {
-    if (l && l.images && l.images.length) return l.images.slice();
+    if (l && l.images && l.images.length) return l.images.filter(function (u, i, a) { return u && a.indexOf(u) === i; });
     var base = listImg(l); var a = [base];
     if (l && l.gid) { (l.gid || []).forEach(function (g) { a.push(img(g)); }); }
-    return a;
+    return a.filter(function (u, i, all) { return u && all.indexOf(u) === i; });
   }
   function videoEmbed(url) {
     if (!url) return null;
@@ -470,22 +470,35 @@
 
     var related = state.listings.filter(function (l) { return l.id !== a.id; }).slice(0, 4).map(landCard).join('');
 
+    var galleryHtml;
+    if (imgs.length === 1) {
+      galleryHtml = '<div class="gallery gallery-single" style="background:#101611;border-radius:20px;overflow:hidden;margin-bottom:24px;position:relative;text-align:center">' +
+        '<div ' + click(function () { openLightbox(0); }) + ' style="position:relative;cursor:pointer;display:flex;justify-content:center">' +
+          '<img src="' + attr(imgs[0]) + '" alt="" style="display:block;width:100%;height:auto;max-height:680px;object-fit:contain">' +
+          '<span style="position:absolute;right:16px;bottom:16px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.94);color:#1B2019;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px;pointer-events:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8h.01M4 16l4-4 4 4M12 14l3-3 5 5"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>ดูรูปเต็ม 1 รูป</span>' +
+        '</div></div>';
+    } else if (imgs.length === 2) {
+      galleryHtml = '<div class="gallery gallery-two" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;height:430px;border-radius:20px;overflow:hidden;margin-bottom:24px;background:#E4EAE1">' +
+        imgs.map(function (u, i) { return '<div ' + click((function (idx) { return function () { openLightbox(idx); }; })(i)) + ' style="position:relative;overflow:hidden;cursor:pointer;background:#E4EAE1"><img src="' + attr(u) + '" alt="" style="width:100%;height:100%;object-fit:cover">' + (i === 1 ? '<span style="position:absolute;right:16px;bottom:16px;background:rgba(255,255,255,.94);color:#1B2019;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px">ดูทั้งหมด 2 รูป</span>' : '') + '</div>'; }).join('') +
+      '</div>';
+    } else {
+      galleryHtml = '<div class="gallery gallery-many" style="display:grid;grid-template-columns:1.55fr 1fr;grid-template-rows:1fr 1fr;gap:10px;height:440px;border-radius:20px;overflow:hidden;margin-bottom:24px">' +
+        '<div ' + click(function () { openLightbox(0); }) + ' style="grid-row:span 2;background:#E4EAE1;position:relative;overflow:hidden;cursor:pointer">' +
+          '<img src="' + attr(imgs[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">' +
+          '<span style="position:absolute;right:16px;bottom:16px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.92);color:#1B2019;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px;pointer-events:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8h.01M4 16l4-4 4 4M12 14l3-3 5 5"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>ดูรูปทั้งหมด ' + imgs.length + ' รูป</span>' +
+        '</div>' +
+        '<div ' + click(function () { openLightbox(1); }) + ' style="background:#E4EAE1;overflow:hidden;cursor:pointer"><img src="' + attr(imgs[1]) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>' +
+        '<div style="background:#E4EAE1;overflow:hidden;position:relative"><img src="' + attr(imgs[2]) + '" alt="" style="width:100%;height:100%;object-fit:cover">' + thirdOverlay + '</div>' +
+      '</div>';
+    }
+
     return '<main style="max-width:1240px;margin:0 auto;padding:22px 24px 90px">' +
       '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#8A8F84;margin-bottom:16px">' +
         '<button ' + click(function () { go('home'); }) + ' style="background:none;border:none;color:#1F4A34;font-weight:500;cursor:pointer;padding:0;display:flex;align-items:center;gap:5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>กลับหน้าแรก</button>' +
         '<span>·</span><span>' + esc(a.district) + '</span><span>·</span><span>' + esc(a.province) + '</span>' +
       '</div>' +
 
-      // GALLERY
-      '<div class="gallery" style="display:grid;grid-template-columns:1.55fr 1fr;grid-template-rows:1fr 1fr;gap:10px;height:440px;border-radius:20px;overflow:hidden;margin-bottom:24px">' +
-        '<div ' + click(function () { openLightbox(0); }) + ' style="grid-row:span 2;background:#E4EAE1;position:relative;overflow:hidden;cursor:pointer">' +
-          '<img src="' + attr(imgs[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">' +
-          '<span style="position:absolute;left:16px;top:16px;background:rgba(23,55,38,.82);color:#EBD9A8;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;pointer-events:none">ภาพมุมสูง (Drone)</span>' +
-          '<span style="position:absolute;right:16px;bottom:16px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.92);color:#1B2019;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:20px;pointer-events:none"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 8h.01M4 16l4-4 4 4M12 14l3-3 5 5"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>ดูรูปทั้งหมด ' + imgs.length + ' รูป</span>' +
-        '</div>' +
-        '<div ' + click(function () { openLightbox(1); }) + ' style="background:#E4EAE1;overflow:hidden;cursor:pointer"><img src="' + attr(imgs[1] || imgs[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>' +
-        '<div style="background:#E4EAE1;overflow:hidden;position:relative"><img src="' + attr(imgs[2] || imgs[1] || imgs[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover">' + thirdOverlay + '</div>' +
-      '</div>' +
+      galleryHtml +
 
       '<div class="detail-grid" style="display:grid;grid-template-columns:1fr 372px;gap:34px;align-items:start">' +
         // LEFT

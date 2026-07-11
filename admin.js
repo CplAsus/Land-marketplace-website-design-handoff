@@ -66,6 +66,7 @@
     editingPurposes = (x.purposes || []).slice();
     var nearby = (x.nearby || []).map(function(n){return n.name + ' | ' + n.dist;}).join('\n');
     var coord = (x.latitude != null && x.longitude != null) ? (x.latitude + ', ' + x.longitude) : '';
+    var sizeParts = landSizeParts(x);
     var districts = ['เมืองปทุมธานี','คลองหลวง','ธัญบุรี','หนองเสือ','ลาดหลุมแก้ว','ลำลูกกา','สามโคก'];
     var deeds = ['โฉนด (นส.4)','น.ส.3 ก.','น.ส.3','ส.ป.ก.','โปรดสอบถามผู้ขาย'];
     var owners = ['นายหน้า','เจ้าของขายเอง','ทรายทองพัฒนา'];
@@ -74,8 +75,12 @@
     modal.innerHTML = '<section class="editor-modal"><div class="modal-head"><h1>' + (x.id ? 'แก้ไขประกาศที่ดิน' : 'เพิ่มประกาศที่ดิน') + '</h1><button type="button" class="modal-close" aria-label="ปิด">×</button></div>' +
       '<form id="listing-form"><input type="hidden" name="id" value="' + esc(x.id || '') + '"><input type="hidden" name="province" value="ปทุมธานี"><input type="hidden" name="sort_order" value="' + esc(x.sort_order || 0) + '"><div class="form-grid">' +
       field('ชื่อประกาศ *','title',x.title,'text',true,'span-2') + selectField('อำเภอ','district',x.district,districts) + selectField('เอกสารสิทธิ์','deed',x.deed,deeds) +
-      field('ราคา (บาท) *','price',x.price,'number',true) + field('ขนาด (ไร่) *','rai',x.rai,'number',true) + field('ขนาด (ไร่-งาน-ตร.ว.)','size_text',x.size_text,'text',true) + field('หน้ากว้าง × ลึก','dimensions',x.dimensions,'text',false) +
-      '<div class="price-stat"><small>ราคาต่อไร่</small><strong id="per-rai">฿0</strong></div><div class="price-stat gold"><small>ราคาต่อตารางวา</small><strong id="per-wa">฿0</strong></div>' +
+      field('ราคาขายรวม (บาท) *','price',x.price,'number',true,'span-2 price-input-field') +
+      '<div class="land-calc-card span-2"><div class="calc-head"><div><strong>ขนาดที่ดิน</strong><small>กรอกแยกเป็น ไร่–งาน–ตารางวา ระบบจะคำนวณให้ทันที</small></div><span>1 ไร่ = 400 ตร.ว.</span></div>' +
+        '<div class="land-size-inputs"><div class="field"><label>ไร่</label><input name="size_rai" type="number" min="0" step="1" inputmode="numeric" value="'+esc(sizeParts.rai)+'"></div><div class="field"><label>งาน</label><input name="size_ngan" type="number" min="0" step="1" inputmode="numeric" value="'+esc(sizeParts.ngan)+'"></div><div class="field"><label>ตารางวา</label><input name="size_wa" type="number" min="0" step="any" inputmode="decimal" value="'+esc(sizeParts.wa)+'"></div></div>' +
+        '<input type="hidden" name="rai" value="'+esc(x.rai || '')+'"><input type="hidden" name="size_text" value="'+esc(x.size_text || '')+'">' +
+        '<div class="calc-summary"><div class="calc-total"><small>พื้นที่รวม</small><strong id="total-wa">0 ตารางวา</strong><span id="rai-equivalent">0 ไร่</span></div><div class="price-stat"><small>ราคาต่อไร่</small><strong id="per-rai">฿0</strong></div><div class="price-stat gold"><small>ราคาต่อตารางวา</small><strong id="per-wa">฿0</strong></div></div>' +
+      '</div>' + field('หน้ากว้าง × ลึก','dimensions',x.dimensions,'text',false,'span-2') +
       selectField('ผู้ขาย','owner_name',x.owner_name,owners) + field('ป้ายกำกับ (คั่นด้วย ,)','tags',(x.tags||[]).join(', '),'text',false) +
       '<div class="field span-2"><label>รูปภาพแปลงที่ดิน (เพิ่มได้หลายรูป)</label><div id="images-preview" class="images-preview"></div><div class="url-add"><input id="image-url" type="url" placeholder="วางลิงก์รูป (URL) แล้วกดเพิ่ม"><button type="button" id="add-url" class="btn btn-primary">เพิ่ม</button></div><label class="upload-drop">⇧ <span>อัปโหลดรูปจากเครื่อง (เลือกหลายรูปได้)</span><input name="image_files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label></div>' +
       field('วิดีโอแปลง (ลิงก์ YouTube หรือไฟล์วิดีโอ)','video_url',x.video_url,'url',false,'span-2') + field('พิกัดแผนที่ (lat, lng)','coordinates',coord,'text',false,'span-2') +
@@ -91,11 +96,22 @@
     modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u){editingImages.push(u);input.value='';renderImages();}};
     modal.querySelectorAll('[data-purpose]').forEach(function(b){b.onclick=function(){var p=b.dataset.purpose,i=editingPurposes.indexOf(p);if(i>=0)editingPurposes.splice(i,1);else editingPurposes.push(p);b.classList.toggle('active');};});
     modal.querySelector('[name=image_files]').onchange=function(){renderLocalPreviews(this.files);};
-    modal.querySelector('[name=price]').oninput=updateCalculatedPrices; modal.querySelector('[name=rai]').oninput=updateCalculatedPrices;
+    modal.querySelector('[name=price]').oninput=updateCalculatedPrices;
+    modal.querySelectorAll('[name=size_rai],[name=size_ngan],[name=size_wa]').forEach(function(input){input.oninput=updateCalculatedPrices;});
     modal.querySelector('#listing-form').addEventListener('submit', saveListing);
     function renderImages(){var box=modal.querySelector('#images-preview');box.innerHTML=editingImages.map(function(u,i){return '<div class="image-thumb"><img src="'+esc(u)+'" alt="">'+(i===0?'<span>หน้าปก</span>':'')+'<button type="button" data-remove-image="'+i+'">×</button></div>';}).join('');box.querySelectorAll('[data-remove-image]').forEach(function(b){b.onclick=function(){editingImages.splice(Number(b.dataset.removeImage),1);renderImages();};});}
     function renderLocalPreviews(files){var box=modal.querySelector('#images-preview');Array.from(files||[]).forEach(function(file){var u=URL.createObjectURL(file),d=document.createElement('div');d.className='image-thumb pending';d.innerHTML='<img src="'+u+'" alt=""><span>รูปใหม่</span>';box.appendChild(d);});}
-    function updateCalculatedPrices(){var price=Number(modal.querySelector('[name=price]').value)||0,rai=Number(modal.querySelector('[name=rai]').value)||0;modal.querySelector('#per-rai').textContent=rai?'฿'+Math.round(price/rai).toLocaleString('en-US'):'฿0';modal.querySelector('#per-wa').textContent=rai?'฿'+Math.round(price/(rai*400)).toLocaleString('en-US'):'฿0';}
+    function updateCalculatedPrices(){
+      var price=Number(modal.querySelector('[name=price]').value)||0;
+      var rai=Math.max(0,Number(modal.querySelector('[name=size_rai]').value)||0),ngan=Math.max(0,Number(modal.querySelector('[name=size_ngan]').value)||0),wa=Math.max(0,Number(modal.querySelector('[name=size_wa]').value)||0);
+      var totalWa=(rai*400)+(ngan*100)+wa,totalRai=totalWa/400;
+      modal.querySelector('[name=rai]').value=totalRai||'';
+      modal.querySelector('[name=size_text]').value=formatLandSize(totalWa);
+      modal.querySelector('#total-wa').textContent=formatNumber(totalWa)+' ตารางวา';
+      modal.querySelector('#rai-equivalent').textContent=totalWa?formatNumber(totalRai)+' ไร่':'0 ไร่';
+      modal.querySelector('#per-rai').textContent=totalWa&&price?'฿'+Math.round(price/totalRai).toLocaleString('en-US'):'฿0';
+      modal.querySelector('#per-wa').textContent=totalWa&&price?'฿'+Math.round(price/totalWa).toLocaleString('en-US'):'฿0';
+    }
     renderImages(); updateCalculatedPrices();
   }
 
@@ -103,6 +119,19 @@
   function area(label,name,value,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><textarea name="'+name+'">'+esc(value)+'</textarea></div>';}
   function selectField(label,name,value,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options.map(function(o){return '<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select></div>';}
   function check(name,label,yes,description,cls){return '<label class="utility-option '+(cls||'')+'"><input type="checkbox" name="'+name+'" '+(yes?'checked':'')+'><span class="utility-mark" aria-hidden="true"></span><span class="utility-copy"><strong>'+label+'</strong>'+(description?'<small>'+description+'</small>':'')+'</span></label>';}
+
+  function formatNumber(n){return Number.isInteger(n)?String(n):Number(n.toFixed(4)).toString();}
+  function formatLandSize(totalWa){
+    if(!totalWa)return '';
+    var rai=Math.floor(totalWa/400),remain=totalWa-(rai*400),ngan=Math.floor(remain/100),wa=remain-(ngan*100);
+    return rai+' ไร่ '+ngan+' งาน '+formatNumber(wa)+' ตารางวา';
+  }
+  function landSizeParts(x){
+    var text=String((x&&x.size_text)||''),mRai=text.match(/([\d.]+)\s*ไร่/),mNgan=text.match(/([\d.]+)\s*งาน/),mWa=text.match(/([\d.]+)\s*(?:ตารางวา|ตร\.?\s*ว\.?)/);
+    var found=mRai||mNgan||mWa,totalWa=found?((Number(mRai&&mRai[1])||0)*400)+((Number(mNgan&&mNgan[1])||0)*100)+(Number(mWa&&mWa[1])||0):((Number(x&&x.rai)||0)*400);
+    var rai=Math.floor(totalWa/400),remain=totalWa-(rai*400),ngan=Math.floor(remain/100),wa=remain-(ngan*100);
+    return {rai:rai,ngan:ngan,wa:formatNumber(wa)};
+  }
 
   async function uploadImages(files) {
     var urls = [];
@@ -123,6 +152,7 @@
       var files=form.elements.image_files.files; if(files.length) images=images.concat(await uploadImages(files));
       var nearby=list(f.get('nearby')).map(function(line){var p=line.split('|');return {name:(p[0]||'').trim(),dist:(p[1]||'').trim()};}).filter(function(n){return n.name;});
       var cm=String(f.get('coordinates')||'').match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+      if(Number(f.get('rai'))<=0)throw new Error('กรุณากรอกขนาดที่ดินอย่างน้อย 1 ตารางวา');
       var row={slug:(old&&old.slug)||('land-'+Date.now()),title:f.get('title').trim(),district:f.get('district').trim(),province:f.get('province').trim(),price:Number(f.get('price')),rai:Number(f.get('rai')),size_text:f.get('size_text').trim(),deed:f.get('deed').trim(),owner_name:f.get('owner_name').trim(),dimensions:f.get('dimensions').trim(),latitude:cm?Number(cm[1]):null,longitude:cm?Number(cm[2]):null,images:images,video_url:String(f.get('video_url')||'').trim(),tags:list(f.get('tags')),purposes:editingPurposes.slice(),highlights:list(f.get('highlights')),nearby:nearby,road:f.has('road'),water:f.has('water'),power:f.has('power'),verified:f.has('verified'),transfer_fee_free:f.has('transfer_fee_free'),published:f.has('published'),status:f.get('status'),sort_order:Number(f.get('sort_order')||0)};
       var result=id?await client.from('land_listings').update(row).eq('id',id):await client.from('land_listings').insert(row);
       if(result.error) throw result.error; await loadListings();

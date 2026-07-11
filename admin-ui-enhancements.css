@@ -131,3 +131,119 @@
     grid-template-columns: 1fr;
   }
 }
+
+.price-input-field input {
+  font-size: 18px;
+  font-weight: 700;
+  color: #164c32;
+}
+
+.land-calc-card {
+  border: 1px solid #dedbd3;
+  border-radius: 14px;
+  padding: 16px;
+  background: #fbfaf7;
+}
+
+.calc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.calc-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.calc-head strong {
+  color: #253129;
+  font-size: 14px;
+}
+
+.calc-head small {
+  color: #7b817a;
+  font-size: 11.5px;
+}
+
+.calc-head > span {
+  flex: none;
+  border-radius: 20px;
+  background: #eaf1eb;
+  color: #24573d;
+  padding: 5px 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.land-size-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.land-size-inputs .field {
+  position: relative;
+}
+
+.land-size-inputs input {
+  padding-right: 44px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #253129;
+}
+
+.land-size-inputs .field::after {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  color: #878d86;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.land-size-inputs .field:nth-child(1)::after { content: "ไร่"; }
+.land-size-inputs .field:nth-child(2)::after { content: "งาน"; }
+.land-size-inputs .field:nth-child(3)::after { content: "ตร.ว."; }
+
+.calc-summary {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 9px;
+}
+
+.calc-total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: 11px;
+  background: #fff;
+  border: 1px solid #e5e0d7;
+  padding: 10px 13px;
+}
+
+.calc-total small,
+.calc-total span {
+  color: #777f78;
+  font-size: 10.5px;
+}
+
+.calc-total strong {
+  color: #253129;
+  font-size: 16px;
+}
+
+@media (max-width: 560px) {
+  .calc-head {
+    flex-direction: column;
+  }
+
+  .land-size-inputs,
+  .calc-summary {
+    grid-template-columns: 1fr;
+  }
+}
