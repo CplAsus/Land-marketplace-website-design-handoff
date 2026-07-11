@@ -82,7 +82,7 @@
         '<div class="calc-summary"><div class="calc-total"><small>พื้นที่รวม</small><strong id="total-wa">0 ตารางวา</strong><span id="rai-equivalent">0 ไร่</span></div><div class="price-stat"><small>ราคาต่อไร่</small><strong id="per-rai">฿0</strong></div><div class="price-stat gold"><small>ราคาต่อตารางวา</small><strong id="per-wa">฿0</strong></div></div>' +
       '</div>' + field('หน้ากว้าง × ลึก','dimensions',x.dimensions,'text',false,'span-2') +
       selectField('ผู้ขาย','owner_name',x.owner_name,owners) + field('ป้ายกำกับ (คั่นด้วย ,)','tags',(x.tags||[]).join(', '),'text',false) +
-      '<div class="field span-2"><label>รูปภาพแปลงที่ดิน (เพิ่มได้หลายรูป)</label><div id="images-preview" class="images-preview"></div><div class="url-add"><input id="image-url" type="url" placeholder="วางลิงก์รูป (URL) แล้วกดเพิ่ม"><button type="button" id="add-url" class="btn btn-primary">เพิ่ม</button></div><label class="upload-drop">⇧ <span>อัปโหลดรูปจากเครื่อง (เลือกหลายรูปได้)</span><input name="image_files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label></div>' +
+      '<div class="field span-2"><label>รูปภาพแปลงที่ดิน (เพิ่มได้หลายรูป)</label><p class="field-hint image-order-hint">ลากรูปเพื่อจัดลำดับ หรือใช้ปุ่ม ← → ใต้รูป รูปแรกจะเป็นหน้าปก</p><div id="images-preview" class="images-preview sortable-images"></div><div class="url-add"><input id="image-url" type="url" placeholder="วางลิงก์รูป (URL) แล้วกดเพิ่ม"><button type="button" id="add-url" class="btn btn-primary">เพิ่ม</button></div><label class="upload-drop">⇧ <span>อัปโหลดรูปจากเครื่อง (เลือกหลายรูปได้)</span><input name="image_files" type="file" accept="image/jpeg,image/png,image/webp" multiple></label></div>' +
       field('วิดีโอแปลง (ลิงก์ YouTube หรือไฟล์วิดีโอ)','video_url',x.video_url,'url',false,'span-2') + field('พิกัดแผนที่ (lat, lng)','coordinates',coord,'text',false,'span-2') +
       area('จุดเด่นของแปลง (บรรทัดละ 1 ข้อ)','highlights',(x.highlights||[]).join('\n'),'span-2') + area('สถานที่ใกล้เคียง: ชื่อ | ระยะทาง','nearby',nearby,'span-2') +
       '<div class="field span-2"><label>เหมาะสำหรับ</label><div id="purpose-chips" class="purpose-chips">' + purposeOptions.map(function(p){return '<button type="button" data-purpose="'+esc(p)+'" class="purpose-chip '+(editingPurposes.indexOf(p)>=0?'active':'')+'">'+esc(p)+'</button>';}).join('') + '</div></div>' +
@@ -93,13 +93,23 @@
     function closeModal(){modal.remove();document.body.classList.remove('modal-open');}
     modal.querySelector('.modal-close').onclick=closeModal; modal.querySelector('#cancel').onclick=closeModal;
     modal.onclick=function(e){if(e.target===modal)closeModal();};
-    modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u){editingImages.push(u);input.value='';renderImages();}};
+    modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u&&editingImages.indexOf(u)<0){editingImages.push(u);input.value='';renderImages();}};
     modal.querySelectorAll('[data-purpose]').forEach(function(b){b.onclick=function(){var p=b.dataset.purpose,i=editingPurposes.indexOf(p);if(i>=0)editingPurposes.splice(i,1);else editingPurposes.push(p);b.classList.toggle('active');};});
     modal.querySelector('[name=image_files]').onchange=function(){renderLocalPreviews(this.files);};
     modal.querySelector('[name=price]').oninput=updateCalculatedPrices;
     modal.querySelectorAll('[name=size_rai],[name=size_ngan],[name=size_wa]').forEach(function(input){input.oninput=updateCalculatedPrices;});
     modal.querySelector('#listing-form').addEventListener('submit', saveListing);
-    function renderImages(){var box=modal.querySelector('#images-preview');box.innerHTML=editingImages.map(function(u,i){return '<div class="image-thumb"><img src="'+esc(u)+'" alt="">'+(i===0?'<span>หน้าปก</span>':'')+'<button type="button" data-remove-image="'+i+'">×</button></div>';}).join('');box.querySelectorAll('[data-remove-image]').forEach(function(b){b.onclick=function(){editingImages.splice(Number(b.dataset.removeImage),1);renderImages();};});}
+    function moveImage(from,to){if(from===to||from<0||to<0||from>=editingImages.length||to>=editingImages.length)return;var item=editingImages.splice(from,1)[0];editingImages.splice(to,0,item);renderImages();}
+    function renderImages(){
+      var box=modal.querySelector('#images-preview');
+      box.innerHTML=editingImages.map(function(u,i){return '<div class="image-thumb" draggable="true" data-image-index="'+i+'"><img src="'+esc(u)+'" alt="รูปที่ '+(i+1)+'">'+(i===0?'<span>หน้าปก</span>':'<span class="image-number">รูปที่ '+(i+1)+'</span>')+'<button type="button" data-remove-image="'+i+'" aria-label="ลบรูปที่ '+(i+1)+'">×</button><div class="image-order-actions"><button type="button" data-move-image="'+i+'" data-direction="-1" aria-label="เลื่อนรูปไปทางซ้าย" '+(i===0?'disabled':'')+'>←</button><button type="button" data-move-image="'+i+'" data-direction="1" aria-label="เลื่อนรูปไปทางขวา" '+(i===editingImages.length-1?'disabled':'')+'>→</button></div></div>';}).join('');
+      box.querySelectorAll('[data-remove-image]').forEach(function(b){b.onclick=function(){editingImages.splice(Number(b.dataset.removeImage),1);renderImages();};});
+      box.querySelectorAll('[data-move-image]').forEach(function(b){b.onclick=function(){var from=Number(b.dataset.moveImage);moveImage(from,from+Number(b.dataset.direction));};});
+      box.ondragstart=function(e){var card=e.target.closest('[data-image-index]');if(!card)return;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',card.dataset.imageIndex);card.classList.add('dragging');};
+      box.ondragend=function(){box.querySelectorAll('.dragging,.drag-over').forEach(function(el){el.classList.remove('dragging','drag-over');});};
+      box.ondragover=function(e){var card=e.target.closest('[data-image-index]');if(!card)return;e.preventDefault();box.querySelectorAll('.drag-over').forEach(function(el){el.classList.remove('drag-over');});card.classList.add('drag-over');};
+      box.ondrop=function(e){var card=e.target.closest('[data-image-index]');if(!card)return;e.preventDefault();var from=Number(e.dataTransfer.getData('text/plain')),to=Number(card.dataset.imageIndex);moveImage(from,to);};
+    }
     function renderLocalPreviews(files){var box=modal.querySelector('#images-preview');Array.from(files||[]).forEach(function(file){var u=URL.createObjectURL(file),d=document.createElement('div');d.className='image-thumb pending';d.innerHTML='<img src="'+u+'" alt=""><span>รูปใหม่</span>';box.appendChild(d);});}
     function updateCalculatedPrices(){
       var price=Number(modal.querySelector('[name=price]').value)||0;

@@ -25,6 +25,11 @@
     cName: '', cPhone: '', cDate: '', cNote: '', reportReason: '', docSel: [],
     // media
     lightbox: -1, videoOpen: false,
+    // search filters
+    filterDistrict: 'ทุกอำเภอในปทุมธานี',
+    filterBudget: 'ไม่จำกัด',
+    filterSize: 'ทุกขนาด',
+    filterPurpose: 'ทุกประเภท',
     listings: [], reviews: []
   };
 
@@ -187,6 +192,31 @@
     var el = document.getElementById('featured-listings');
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: 'smooth' });
   }
+  function clearFilters() {
+    set({ filterDistrict:'ทุกอำเภอในปทุมธานี', filterBudget:'ไม่จำกัด', filterSize:'ทุกขนาด', filterPurpose:'ทุกประเภท' });
+    setTimeout(scrollFeatured, 0);
+  }
+  function filteredListings() {
+    return state.listings.filter(function (l) {
+      if (state.filterDistrict !== 'ทุกอำเภอในปทุมธานี' && l.district !== state.filterDistrict) return false;
+      var p = Number(l.price) || 0, r = Number(l.rai) || 0;
+      if (state.filterBudget === 'ต่ำกว่า 1 ล้าน' && !(p < 1000000)) return false;
+      if (state.filterBudget === '1 - 3 ล้าน' && !(p >= 1000000 && p <= 3000000)) return false;
+      if (state.filterBudget === '3 - 5 ล้าน' && !(p >= 3000000 && p <= 5000000)) return false;
+      if (state.filterBudget === '5 - 10 ล้าน' && !(p >= 5000000 && p <= 10000000)) return false;
+      if (state.filterBudget === 'มากกว่า 10 ล้าน' && !(p > 10000000)) return false;
+      if (state.filterSize === 'น้อยกว่า 1 ไร่' && !(r < 1)) return false;
+      if (state.filterSize === '1 - 5 ไร่' && !(r >= 1 && r <= 5)) return false;
+      if (state.filterSize === '5 - 20 ไร่' && !(r >= 5 && r <= 20)) return false;
+      if (state.filterSize === 'มากกว่า 20 ไร่' && !(r > 20)) return false;
+      if (state.filterPurpose !== 'ทุกประเภท') {
+        var wanted = state.filterPurpose === 'โกดัง / โรงงาน' ? ['โกดัง','โรงงาน'] : [state.filterPurpose];
+        var purposes = l.purposes || [];
+        if (!wanted.some(function (w) { return purposes.some(function (item) { return String(item).indexOf(w) >= 0; }); })) return false;
+      }
+      return true;
+    });
+  }
   function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1, videoOpen: false }); window.scrollTo(0, 0); }
   function toggleFav(id) { var f = state.favs.slice(); var i = f.indexOf(id); i >= 0 ? f.splice(i, 1) : f.push(id); set({ favs: f }); }
   function toggleCompare(id) { var c = state.compare.slice(); var i = c.indexOf(id); if (i >= 0) c.splice(i, 1); else if (c.length < 4) c.push(id); set({ compare: c }); }
@@ -339,14 +369,18 @@
     '</header>';
   }
 
-  function heroSelect(options, handler) {
-    var opts = options.map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('');
+  function heroSelect(options, value, handler) {
+    var opts = options.map(function (o) { return '<option' + (o === value ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('');
     var h = handler ? ' ' + onchange(handler) : '';
     return '<select' + h + ' style="border:none;background:none;font-size:14px;color:#4A5047;width:100%;cursor:pointer;outline:none;font-weight:500">' + opts + '</select>';
   }
 
   function home() {
-    var featured = state.listings.slice(0, 4).map(landCard).join('');
+    var filtered = filteredListings();
+    var featured = filtered.map(landCard).join('');
+    var hasFilters = state.filterDistrict !== 'ทุกอำเภอในปทุมธานี' || state.filterBudget !== 'ไม่จำกัด' || state.filterSize !== 'ทุกขนาด' || state.filterPurpose !== 'ทุกประเภท';
+    var resultText = hasFilters ? 'พบ ' + filtered.length + ' แปลงตามตัวกรองที่เลือก' : 'ข้อมูล ราคา และรูปภาพจากทรายทองพัฒนา';
+    var emptyResults = '<div style="grid-column:1/-1;text-align:center;background:#fff;border:1px solid #E7E3DA;border-radius:16px;padding:42px 20px;color:#6B7065"><div style="font-size:18px;font-weight:700;color:#1F4A34;margin-bottom:6px">ไม่พบที่ดินตามเงื่อนไข</div><div style="font-size:14px;margin-bottom:16px">ลองเปลี่ยนงบประมาณ ขนาด หรือวัตถุประสงค์</div><button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer">ล้างตัวกรอง</button></div>';
 
     var trustItems = [
       { icon: ICON.shield, title:'ข้อมูลจากผู้ขายโดยตรง', desc:'รายละเอียด ราคา และรูปภาพจัดทำจากข้อมูลของทรายทองพัฒนา' },
@@ -397,13 +431,13 @@
           '<h1 class="hero-h1" style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:52px;line-height:1.18;color:#fff;margin:0 0 18px;max-width:820px;letter-spacing:-.5px">ค้นหาที่ดินที่ใช่<br>สำหรับบ้าน ธุรกิจ และการลงทุน</h1>' +
           '<p style="font-size:18px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:610px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานีและพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
           '<div class="hero-search" style="background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(20,40,28,.28);padding:12px;display:flex;align-items:stretch;gap:2px">' +
-            '<div class="hov-soft" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกอำเภอในปทุมธานี','ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี']) + '</div>' +
+            '<div class="hov-soft" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกอำเภอในปทุมธานี','ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
             '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">งบประมาณ</div>' + heroSelect(['ไม่จำกัด','ต่ำกว่า 1 ล้าน','1 - 3 ล้าน','3 - 5 ล้าน','5 - 10 ล้าน','มากกว่า 10 ล้าน']) + '</div>' +
+            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">งบประมาณ</div>' + heroSelect(['ไม่จำกัด','ต่ำกว่า 1 ล้าน','1 - 3 ล้าน','3 - 5 ล้าน','5 - 10 ล้าน','มากกว่า 10 ล้าน'],state.filterBudget,function(e){set({filterBudget:e.target.value});}) + '</div>' +
             '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ขนาดที่ดิน</div>' + heroSelect(['ทุกขนาด','น้อยกว่า 1 ไร่','1 - 5 ไร่','5 - 20 ไร่','มากกว่า 20 ไร่']) + '</div>' +
+            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ขนาดที่ดิน</div>' + heroSelect(['ทุกขนาด','น้อยกว่า 1 ไร่','1 - 5 ไร่','5 - 20 ไร่','มากกว่า 20 ไร่'],state.filterSize,function(e){set({filterSize:e.target.value});}) + '</div>' +
             '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">วัตถุประสงค์</div>' + heroSelect(['ทุกประเภท','สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง / โรงงาน']) + '</div>' +
+            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">วัตถุประสงค์</div>' + heroSelect(['ทุกประเภท','สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง / โรงงาน'],state.filterPurpose,function(e){set({filterPurpose:e.target.value});}) + '</div>' +
             '<button ' + click(scrollFeatured) + ' class="btn-search" style="flex:none;background:#E3A81E;border:none;border-radius:14px;padding:0 30px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>ค้นหาที่ดิน</button>' +
           '</div>' +
         '</div>' +
@@ -412,10 +446,10 @@
       // FEATURED
       '<section id="featured-listings" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
         '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap">' +
-          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินพร้อมขาย</h2><p style="margin:0;color:#8A8F84;font-size:14.5px">ข้อมูล ราคา และรูปภาพจากทรายทองพัฒนา</p></div>' +
-          '<button ' + click(scrollFeatured) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:14px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:7px">ดูทั้งหมด<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></button>' +
+          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินพร้อมขาย</h2><p style="margin:0;color:#8A8F84;font-size:14.5px">' + resultText + '</p></div>' +
+          (hasFilters ? '<button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:14px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer">ล้างตัวกรอง</button>' : '') +
         '</div>' +
-        '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">' + featured + '</div>' +
+        '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">' + (featured || emptyResults) + '</div>' +
       '</section>' +
 
       // TRUST

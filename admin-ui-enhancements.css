@@ -126,6 +126,66 @@
   }
 }
 
+.image-order-hint {
+  margin-bottom: 2px;
+}
+
+.sortable-images .image-thumb {
+  cursor: grab;
+  user-select: none;
+  transition: transform .16s ease, opacity .16s ease, box-shadow .16s ease;
+}
+
+.sortable-images .image-thumb:active {
+  cursor: grabbing;
+}
+
+.sortable-images .image-thumb.dragging {
+  opacity: .45;
+  transform: scale(.96);
+}
+
+.sortable-images .image-thumb.drag-over {
+  box-shadow: 0 0 0 3px #dca516;
+  transform: translateY(-2px);
+}
+
+.image-number {
+  background: rgba(27, 32, 25, .76) !important;
+}
+
+.image-order-actions {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  display: flex;
+  gap: 3px;
+  transform: translateX(-50%);
+}
+
+.image-order-actions button {
+  width: 27px;
+  height: 23px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .94);
+  color: #174d33;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, .18);
+}
+
+.image-order-actions button:hover:not(:disabled) {
+  background: #1f5a3d;
+  color: #fff;
+}
+
+.image-order-actions button:disabled {
+  opacity: .38;
+  cursor: default;
+}
+
 @media (max-width: 360px) {
   .utility-checks {
     grid-template-columns: 1fr;
