@@ -15,7 +15,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-button, input, select, textarea { font-family: inherit; }
+button, input, select, textarea { font-family: inherit; font-size: inherit; }
+
+/* Readable site-wide typography (+30%). The floating advisor keeps its own sizes. */
+#app { font-size: 20.8px; }
 
 img { max-width: 100%; }
 
@@ -201,7 +204,7 @@ a { text-decoration: none; }
   .gallery-single > * { height: auto !important; }
   .gallery-single img { height: auto !important; max-height: 75vh !important; }
   .gallery-two { grid-template-columns: 1fr !important; height: auto !important; }
-  .hero-h1 { font-size: 34px !important; }
+  .hero-h1 { font-size: 44.2px !important; }
   .footer-grid { grid-template-columns: 1fr !important; }
   .admin-row, .admin-head { grid-template-columns: 48px 1fr auto !important; }
   .admin-hide { display: none !important; }
@@ -210,6 +213,23 @@ a { text-decoration: none; }
   .advisor-prompt { max-width: 210px; padding: 9px 14px; font-size: 12px; }
   .advisor-dismiss { top: 34px; right: -2px; }
   .advisor-panel { padding: 16px; border-radius: 16px; }
+  .compare-bar {
+    bottom: 104px !important;
+    width: calc(100vw - 24px);
+    max-width: 440px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+  .compare-bar > span { width: 100%; text-align: center; }
+  .compare-modal-grid { grid-template-columns: 1fr !important; }
+  .contact-primary-fields { flex-direction: column; }
+}
+
+@media (max-width: 520px) {
+  .hero-search { grid-template-columns: 1fr !important; }
+  .hero-search .btn-search { grid-column: auto; }
 }
 
 /* responsive layout refinements */
@@ -238,18 +258,18 @@ html, body { overflow-x: hidden; }
   .site-header-inner { height: 64px !important; padding: 0 18px !important; }
   .site-header-inner img { width: 42px; height: 42px; }
   .hero-inner { padding: 48px 18px 58px !important; }
-  .hero-inner > div:first-of-type { max-width: 100%; font-size: 11.5px !important; line-height: 1.35; }
-  .hero-h1 { font-size: 36px !important; line-height: 1.22 !important; letter-spacing: -.3px !important; }
-  .hero-h1 + p { font-size: 16px !important; line-height: 1.65 !important; margin-bottom: 28px !important; }
+  .hero-inner > div:first-of-type { max-width: 100%; font-size: 15px !important; line-height: 1.45; }
+  .hero-h1 { font-size: 46.8px !important; line-height: 1.22 !important; letter-spacing: -.3px !important; }
+  .hero-h1 + p { font-size: 20.8px !important; line-height: 1.65 !important; margin-bottom: 28px !important; }
   .hero-search { padding: 8px !important; border-radius: 16px !important; }
   .hero-search .search-field { padding: 10px 12px !important; border-radius: 10px !important; }
-  .hero-search .search-field select { font-size: 13px !important; }
+  .hero-search .search-field select { font-size: 16.9px !important; }
   .hero-search .btn-search { min-height: 50px; padding: 0 20px !important; border-radius: 11px !important; }
   .featured-section { padding: 44px 18px 16px !important; }
-  .featured-section h2 { font-size: 25px !important; }
+  .featured-section h2 { font-size: 32.5px !important; }
   .land-card { border-radius: 14px; }
   .detail-page { padding: 16px 16px 60px !important; }
-  .detail-page h1 { font-size: 25px !important; }
+  .detail-page h1 { font-size: 32.5px !important; }
   .detail-page .gallery { border-radius: 14px !important; margin-bottom: 20px !important; }
   .detail-page .spec-grid { padding: 16px !important; gap: 14px 10px !important; }
   .detail-page .detail-cta > div { padding: 19px !important; }
@@ -260,8 +280,8 @@ html, body { overflow-x: hidden; }
 @media (max-width: 390px) {
   .site-header-inner { padding: 0 14px !important; }
   .hero-inner { padding: 40px 14px 48px !important; }
-  .hero-h1 { font-size: 31px !important; }
-  .hero-h1 + p { font-size: 15px !important; }
+  .hero-h1 { font-size: 40.3px !important; }
+  .hero-h1 + p { font-size: 19.5px !important; }
   .hero-search { grid-template-columns: 1fr; }
   .hero-search .btn-search { grid-column: auto; }
   .featured-section { padding-left: 14px !important; padding-right: 14px !important; }
