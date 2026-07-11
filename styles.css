@@ -68,6 +68,8 @@ a { text-decoration: none; }
 }
 .land-card:hover { box-shadow: 0 12px 30px rgba(31,74,52,.13); transform: translateY(-3px); }
 
+.detail-page { overflow-anchor: none; }
+
 .compare-toggle { transition: border-color .15s, color .15s; }
 .compare-toggle:hover { border-color: #1F4A34; color: #1F4A34; }
 

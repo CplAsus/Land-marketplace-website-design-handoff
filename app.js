@@ -187,7 +187,19 @@
   /* ------------------------------------------------------------------ *
    * Actions
    * ------------------------------------------------------------------ */
-  function go(p) { set({ page: p }); window.scrollTo(0, 0); }
+  function scrollPageTop() {
+    function resetPosition() {
+      var root = document.scrollingElement || document.documentElement;
+      if (root) { root.scrollTop = 0; root.scrollLeft = 0; }
+      if (document.body) { document.body.scrollTop = 0; document.body.scrollLeft = 0; }
+      window.scrollTo(0, 0);
+    }
+    resetPosition();
+    if (window.requestAnimationFrame) requestAnimationFrame(function () { resetPosition(); requestAnimationFrame(resetPosition); });
+    setTimeout(resetPosition, 80);
+    setTimeout(resetPosition, 240);
+  }
+  function go(p) { set({ page: p }); scrollPageTop(); }
   function scrollFeatured() {
     var el = document.getElementById('featured-listings');
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: 'smooth' });
@@ -217,7 +229,7 @@
       return true;
     });
   }
-  function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1, videoOpen: false }); window.scrollTo(0, 0); }
+  function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1, videoOpen: false }); scrollPageTop(); }
   function toggleFav(id) { var f = state.favs.slice(); var i = f.indexOf(id); i >= 0 ? f.splice(i, 1) : f.push(id); set({ favs: f }); }
   function toggleCompare(id) { var c = state.compare.slice(); var i = c.indexOf(id); if (i >= 0) c.splice(i, 1); else if (c.length < 4) c.push(id); set({ compare: c }); }
 
