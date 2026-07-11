@@ -81,7 +81,7 @@
       field('วิดีโอแปลง (ลิงก์ YouTube หรือไฟล์วิดีโอ)','video_url',x.video_url,'url',false,'span-2') + field('พิกัดแผนที่ (lat, lng)','coordinates',coord,'text',false,'span-2') +
       area('จุดเด่นของแปลง (บรรทัดละ 1 ข้อ)','highlights',(x.highlights||[]).join('\n'),'span-2') + area('สถานที่ใกล้เคียง: ชื่อ | ระยะทาง','nearby',nearby,'span-2') +
       '<div class="field span-2"><label>เหมาะสำหรับ</label><div id="purpose-chips" class="purpose-chips">' + purposeOptions.map(function(p){return '<button type="button" data-purpose="'+esc(p)+'" class="purpose-chip '+(editingPurposes.indexOf(p)>=0?'active':'')+'">'+esc(p)+'</button>';}).join('') + '</div></div>' +
-      '<div class="field span-2"><label>สถานะและสาธารณูปโภค</label><div class="checks compact">' + check('verified','ตรวจสอบแล้ว',x.verified) + check('transfer_fee_free','ฟรีค่าโอน',x.transfer_fee_free) + check('road','ติดถนน',x.road) + check('water','มีน้ำ',x.water) + check('power','มีไฟฟ้า',x.power) + check('published','เผยแพร่',x.published) + '</div></div>' +
+      '<div class="field span-2 utility-field"><label>สถานะและสาธารณูปโภค</label><p class="field-hint">เลือกข้อมูลที่ตรงกับแปลงนี้ ลูกค้าจะเห็นเป็นจุดเด่นในหน้าประกาศ</p><div class="utility-checks">' + check('verified','ตรวจสอบแล้ว',x.verified,'ข้อมูลแปลงได้รับการยืนยัน') + check('transfer_fee_free','ฟรีค่าโอน',x.transfer_fee_free,'ผู้ขายรับผิดชอบค่าโอน') + check('road','ติดถนน',x.road,'มีทางสาธารณะเข้าถึง') + check('water','มีน้ำ',x.water,'มีระบบประปาพร้อมใช้') + check('power','มีไฟฟ้า',x.power,'มีไฟฟ้าเข้าถึงแปลง') + check('published','เผยแพร่',x.published,'แสดงประกาศให้ลูกค้าเห็น','publish-check') + '</div></div>' +
       '<div class="field"><label>สถานะประกาศ</label><select name="status">' + ['draft','available','reserved','sold'].map(function(s){return '<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+statusText(s)+'</option>';}).join('') + '</select></div></div>' +
       '<div id="form-message"></div><div class="form-actions"><button type="button" id="cancel" class="btn btn-light">ยกเลิก</button><button type="submit" class="btn btn-primary">บันทึกประกาศ</button></div></form></section>';
     document.body.appendChild(modal); document.body.classList.add('modal-open');
@@ -102,7 +102,7 @@
   function field(label,name,value,type,required,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+(type==='number'?'step="any" ':'')+(required?'required':'')+'></div>';}
   function area(label,name,value,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><textarea name="'+name+'">'+esc(value)+'</textarea></div>';}
   function selectField(label,name,value,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options.map(function(o){return '<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select></div>';}
-  function check(name,label,yes){return '<label><input type="checkbox" name="'+name+'" '+(yes?'checked':'')+'> '+label+'</label>';}
+  function check(name,label,yes,description,cls){return '<label class="utility-option '+(cls||'')+'"><input type="checkbox" name="'+name+'" '+(yes?'checked':'')+'><span class="utility-mark" aria-hidden="true"></span><span class="utility-copy"><strong>'+label+'</strong>'+(description?'<small>'+description+'</small>':'')+'</span></label>';}
 
   async function uploadImages(files) {
     var urls = [];
