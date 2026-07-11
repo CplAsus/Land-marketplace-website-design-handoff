@@ -23,6 +23,8 @@
     // contact modal
     contactType: null, contactDone: false, contactErr: false,
     cName: '', cPhone: '', cDate: '', cNote: '', reportReason: '', docSel: [],
+    // floating advisor
+    advisorOpen: false, advisorHidden: false,
     // media
     lightbox: -1,
     // search filters
@@ -696,6 +698,29 @@
     '</div>';
   }
 
+  function advisorWidget() {
+    if (state.advisorHidden) return '';
+    var panel = state.advisorOpen ?
+      '<div class="advisor-panel" role="dialog" aria-label="ปรึกษาซื้อขายที่ดิน">' +
+        '<button ' + click(function () { set({ advisorOpen: false }); }) + ' class="advisor-panel-close" aria-label="ปิดหน้าต่างปรึกษา">×</button>' +
+        '<div class="advisor-panel-head"><img src="assets/advisor-khunsai.png" alt="คุณทราย"><div><small>ผู้ให้คำปรึกษา</small><strong>คุณทราย · ทรายทองพัฒนา</strong></div></div>' +
+        '<h3>ปรึกษาซื้อ–ขายที่ดินฟรี</h3>' +
+        '<p>สอบถามข้อมูลแปลง นัดชมที่ดิน หรือฝากขายกับคุณทรายได้โดยตรง</p>' +
+        '<div class="advisor-actions">' +
+          '<a href="tel:0974287891" class="advisor-call">โทร 097-428-7891</a>' +
+          '<a href="https://m.me/saithongptn" target="_blank" rel="noopener" class="advisor-facebook">แชทผ่าน Facebook</a>' +
+        '</div>' +
+      '</div>' : '';
+    return '<aside class="advisor-widget' + (state.advisorOpen ? ' is-open' : '') + '">' +
+      panel +
+      '<div class="advisor-launcher">' +
+        '<button ' + click(function () { set({ advisorOpen: !state.advisorOpen }); }) + ' class="advisor-prompt" aria-expanded="' + (state.advisorOpen ? 'true' : 'false') + '">ปรึกษาซื้อ–ขายที่ดินฟรี</button>' +
+        '<button ' + click(function (e) { e.stopPropagation(); set({ advisorHidden: true, advisorOpen: false }); }) + ' class="advisor-dismiss" aria-label="ซ่อนปุ่มปรึกษา">×</button>' +
+        '<button ' + click(function () { set({ advisorOpen: !state.advisorOpen }); }) + ' class="advisor-avatar" aria-label="เปิดหน้าต่างปรึกษากับคุณทราย"><img src="assets/advisor-khunsai.png" alt="คุณทราย"><span>คุณทราย</span></button>' +
+      '</div>' +
+    '</aside>';
+  }
+
   function compareModal() {
     if (!state.showCompareModal) return '';
     var items = state.compare.map(function (id) { return state.listings.find(function (l) { return l.id === id; }); }).filter(Boolean);
@@ -901,7 +926,7 @@
     app.innerHTML =
       '<div style="min-height:100vh">' +
         header() + main + footer() +
-        compareBar() + compareModal() + editModal() + reviewModal() + contactModal() + lightbox() +
+        compareBar() + advisorWidget() + compareModal() + editModal() + reviewModal() + contactModal() + lightbox() +
         switcher() +
       '</div>';
 
