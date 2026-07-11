@@ -244,6 +244,101 @@
   font-weight: 700;
 }
 
+@media (max-width: 720px) {
+  .topbar {
+    height: 64px;
+    padding: 0 14px;
+  }
+
+  .topbar .brand img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .topbar .site-link {
+    font-size: 12px;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+  }
+
+  .toolbar-actions .btn {
+    flex: 1;
+    min-width: 0;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .editor-modal .form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 8px;
+    margin-left: -2px;
+    margin-right: -2px;
+  }
+
+  .editor-modal .form-actions .btn {
+    width: 100%;
+    min-width: 0;
+    padding: 13px 8px;
+  }
+
+  .draft-bar {
+    flex-wrap: wrap;
+    margin-top: -10px;
+  }
+
+  .draft-bar button {
+    margin-left: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .land-size-inputs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .land-size-inputs input {
+    padding: 11px 30px 11px 9px;
+    font-size: 16px;
+  }
+
+  .land-size-inputs .field::after {
+    right: 7px;
+    bottom: 12px;
+    font-size: 10px;
+  }
+
+  .calc-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .utility-option {
+    min-height: 68px;
+  }
+
+  .upload-drop {
+    padding: 10px;
+    text-align: center;
+    line-height: 1.4;
+  }
+}
+
+@media (max-width: 380px) {
+  .topbar .brand small { display: none; }
+  .topbar .site-link { max-width: 82px; text-align: right; line-height: 1.25; }
+  .editor-modal { padding-left: 12px; padding-right: 12px; }
+  .modal-head h1 { font-size: 21px; }
+  .land-calc-card { padding: 12px 10px; }
+  .utility-checks { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 360px) {
   .utility-checks {
     grid-template-columns: 1fr;

@@ -357,7 +357,7 @@
   function header() {
     return '' +
     '<header style="position:sticky;top:0;z-index:50;background:rgba(247,245,240,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #E7E3DA">' +
-      '<div style="max-width:1240px;margin:0 auto;padding:0 24px;height:70px;display:flex;align-items:center;gap:28px">' +
+      '<div class="site-header-inner" style="max-width:1240px;margin:0 auto;padding:0 24px;height:70px;display:flex;align-items:center;gap:28px">' +
         '<div ' + click(function () { go('home'); }) + ' style="display:flex;align-items:center;gap:11px;cursor:pointer;flex:none">' +
           '<div style="width:46px;height:46px;border-radius:50%;overflow:hidden;background:#fff;border:1px solid #EFE3D0;flex:none;box-shadow:0 2px 8px rgba(31,74,52,.15)"><img src="' + LOGO + '" alt="ทรายทองพัฒนา" style="width:100%;height:100%;object-fit:cover;transform:scale(1.05)"></div>' +
           '<div style="line-height:1.05">' +
@@ -426,25 +426,25 @@
       '<section style="position:relative;overflow:hidden;background:#1F4A34">' +
         '<img src="assets/land-khlong7-aerial-1.png" alt="ที่ดินคลอง 7 ลำลูกกา" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.5">' +
         '<div style="position:absolute;inset:0;background:linear-gradient(105deg,rgba(23,55,38,.92) 0%,rgba(23,55,38,.6) 48%,rgba(23,55,38,.25) 100%)"></div>' +
-        '<div style="position:relative;max-width:1240px;margin:0 auto;padding:76px 24px 92px">' +
+        '<div class="hero-inner" style="position:relative;max-width:1240px;margin:0 auto;padding:76px 24px 92px">' +
           '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(235,217,168,.16);border:1px solid rgba(235,217,168,.4);color:#EBD9A8;font-size:13px;font-weight:500;padding:7px 14px;border-radius:30px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#7ED9A0"></span>ซื้อขายที่ดินปทุมธานี ราคาถูก สายคลอง by ทรายทองพัฒนา</div>' +
           '<h1 class="hero-h1" style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:52px;line-height:1.18;color:#fff;margin:0 0 18px;max-width:820px;letter-spacing:-.5px">ค้นหาที่ดินที่ใช่<br>สำหรับบ้าน ธุรกิจ และการลงทุน</h1>' +
           '<p style="font-size:18px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:610px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานีและพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
           '<div class="hero-search" style="background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(20,40,28,.28);padding:12px;display:flex;align-items:stretch;gap:2px">' +
-            '<div class="hov-soft" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกอำเภอในปทุมธานี','ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
-            '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">งบประมาณ</div>' + heroSelect(['ไม่จำกัด','ต่ำกว่า 1 ล้าน','1 - 3 ล้าน','3 - 5 ล้าน','5 - 10 ล้าน','มากกว่า 10 ล้าน'],state.filterBudget,function(e){set({filterBudget:e.target.value});}) + '</div>' +
-            '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ขนาดที่ดิน</div>' + heroSelect(['ทุกขนาด','น้อยกว่า 1 ไร่','1 - 5 ไร่','5 - 20 ไร่','มากกว่า 20 ไร่'],state.filterSize,function(e){set({filterSize:e.target.value});}) + '</div>' +
-            '<div style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
-            '<div class="hov-soft" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">วัตถุประสงค์</div>' + heroSelect(['ทุกประเภท','สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง / โรงงาน'],state.filterPurpose,function(e){set({filterPurpose:e.target.value});}) + '</div>' +
+            '<div class="hov-soft search-field" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกอำเภอในปทุมธานี','ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
+            '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
+            '<div class="hov-soft search-field" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">งบประมาณ</div>' + heroSelect(['ไม่จำกัด','ต่ำกว่า 1 ล้าน','1 - 3 ล้าน','3 - 5 ล้าน','5 - 10 ล้าน','มากกว่า 10 ล้าน'],state.filterBudget,function(e){set({filterBudget:e.target.value});}) + '</div>' +
+            '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
+            '<div class="hov-soft search-field" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">ขนาดที่ดิน</div>' + heroSelect(['ทุกขนาด','น้อยกว่า 1 ไร่','1 - 5 ไร่','5 - 20 ไร่','มากกว่า 20 ไร่'],state.filterSize,function(e){set({filterSize:e.target.value});}) + '</div>' +
+            '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
+            '<div class="hov-soft search-field" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:12px;font-weight:600;color:#1F4A34;margin-bottom:3px">วัตถุประสงค์</div>' + heroSelect(['ทุกประเภท','สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง / โรงงาน'],state.filterPurpose,function(e){set({filterPurpose:e.target.value});}) + '</div>' +
             '<button ' + click(scrollFeatured) + ' class="btn-search" style="flex:none;background:#E3A81E;border:none;border-radius:14px;padding:0 30px;color:#fff;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:9px"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>ค้นหาที่ดิน</button>' +
           '</div>' +
         '</div>' +
       '</section>' +
 
       // FEATURED
-      '<section id="featured-listings" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
+      '<section id="featured-listings" class="featured-section" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
         '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap">' +
           '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินพร้อมขาย</h2><p style="margin:0;color:#8A8F84;font-size:14.5px">' + resultText + '</p></div>' +
           (hasFilters ? '<button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:14px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer">ล้างตัวกรอง</button>' : '') +
@@ -526,7 +526,7 @@
       '</div>';
     }
 
-    return '<main style="max-width:1240px;margin:0 auto;padding:22px 24px 90px">' +
+    return '<main class="detail-page" style="max-width:1240px;margin:0 auto;padding:22px 24px 90px">' +
       '<div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#8A8F84;margin-bottom:16px">' +
         '<button ' + click(function () { go('home'); }) + ' style="background:none;border:none;color:#1F4A34;font-weight:500;cursor:pointer;padding:0;display:flex;align-items:center;gap:5px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M11 6l-6 6 6 6"></path></svg>กลับหน้าแรก</button>' +
         '<span>·</span><span>' + esc(a.district) + '</span><span>·</span><span>' + esc(a.province) + '</span>' +
