@@ -79,7 +79,7 @@ a { text-decoration: none; }
   right: 24px;
   bottom: 22px;
   z-index: 65;
-  width: min(500px, calc(100vw - 48px));
+  width: 370px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -93,7 +93,7 @@ a { text-decoration: none; }
 .advisor-panel {
   position: relative;
   width: 100%;
-  padding: 28px;
+  padding: 22px;
   background: #fff;
   border: 1px solid #e4ded2;
   border-radius: 18px;
@@ -118,25 +118,25 @@ a { text-decoration: none; }
   position: absolute;
   top: 10px;
   right: 10px;
-  width: 40px;
-  height: 40px;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-radius: 50%;
   background: #f0eee8;
   color: #38453d;
-  font-size: 26px;
+  font-size: 18px;
   cursor: pointer;
 }
 
-.advisor-panel-head { display: flex; align-items: center; gap: 15px; padding-right: 40px; }
-.advisor-panel-head img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; object-position: 50% 28%; }
-.advisor-panel-head div { display: flex; flex-direction: column; line-height: 1.45; }
-.advisor-panel-head small { color: #626a63; font-size: 20px; font-weight: 600; }
-.advisor-panel-head strong { color: #153e2b; font-size: 26px; font-weight: 700; }
-.advisor-panel h3 { margin: 24px 0 10px; color: #111713; font-family: 'Noto Serif Thai', serif; font-size: 38px; line-height: 1.3; }
-.advisor-panel p { margin: 0 0 24px; color: #414943; font-size: 24px; font-weight: 500; line-height: 1.7; }
-.advisor-actions { display: grid; gap: 12px; }
-.advisor-actions a { display: flex; min-height: 62px; align-items: center; justify-content: center; border-radius: 13px; padding: 14px 18px; text-align: center; font-size: 25px; line-height: 1.35; font-weight: 700; }
+.advisor-panel-head { display: flex; align-items: center; gap: 10px; padding-right: 24px; }
+.advisor-panel-head img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; object-position: 50% 28%; }
+.advisor-panel-head div { display: flex; flex-direction: column; line-height: 1.35; }
+.advisor-panel-head small { color: #8a8f84; font-size: 14px; font-weight: 500; }
+.advisor-panel-head strong { color: #1f4a34; font-size: 17.5px; font-weight: 700; }
+.advisor-panel h3 { margin: 18px 0 7px; color: #1b2019; font-family: 'Noto Serif Thai', serif; font-size: 25px; line-height: 1.3; }
+.advisor-panel p { margin: 0 0 18px; color: #5f665e; font-size: 16.5px; line-height: 1.6; }
+.advisor-actions { display: grid; gap: 8px; }
+.advisor-actions a { border-radius: 11px; padding: 13px 16px; text-align: center; font-size: 17px; font-weight: 700; }
 .advisor-call { background: #1f4a34; color: #fff; }
 .advisor-facebook { background: #1877f2; color: #fff; }
 
@@ -148,10 +148,8 @@ a { text-decoration: none; }
   border-radius: 18px;
   background: #fff;
   color: #1f4a34;
-  max-width: 390px;
-  padding: 15px 24px;
-  font-size: 25px;
-  line-height: 1.4;
+  padding: 12px 20px;
+  font-size: 17px;
   font-weight: 700;
   box-shadow: 0 7px 24px rgba(20, 31, 24, .13);
   cursor: pointer;
@@ -171,8 +169,8 @@ a { text-decoration: none; }
 }
 
 .advisor-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%; transform: scale(1.06); }
-.advisor-avatar span { position: absolute; inset: auto 0 0; padding: 10px 2px 9px; background: linear-gradient(transparent, rgba(20,31,24,.9)); color: #fff; font-size: 18px; font-weight: 700; }
-.advisor-dismiss { position: absolute; top: 52px; right: -3px; z-index: 2; width: 34px; height: 34px; border: 3px solid #fff; border-radius: 50%; background: #111713; color: #fff; font-size: 23px; line-height: 1; cursor: pointer; }
+.advisor-avatar span { position: absolute; inset: auto 0 0; padding: 8px 2px 8px; background: linear-gradient(transparent, rgba(20,31,24,.88)); color: #fff; font-size: 14px; font-weight: 700; }
+.advisor-dismiss { position: absolute; top: 38px; right: -3px; z-index: 2; width: 25px; height: 25px; border: 2px solid #fff; border-radius: 50%; background: #1b2019; color: #fff; font-size: 15px; line-height: 1; cursor: pointer; }
 .advisor-widget button:focus-visible, .advisor-widget a:focus-visible { outline: 3px solid rgba(227,168,30,.45); outline-offset: 2px; }
 
 @keyframes advisor-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -207,20 +205,17 @@ a { text-decoration: none; }
   .footer-grid { grid-template-columns: 1fr !important; }
   .admin-row, .admin-head { grid-template-columns: 48px 1fr auto !important; }
   .admin-hide { display: none !important; }
-  .advisor-widget { right: 8px; bottom: 10px; width: calc(100vw - 16px); }
-  .advisor-avatar { width: 88px; height: 88px; border-width: 3px; }
-  .advisor-avatar span { font-size: 16px; }
-  .advisor-prompt { max-width: calc(100vw - 112px); padding: 13px 17px; font-size: 21px; line-height: 1.45; }
-  .advisor-dismiss { top: 52px; right: -2px; width: 32px; height: 32px; font-size: 21px; }
-  .advisor-panel { max-height: calc(100vh - 125px); overflow-y: auto; padding: 22px; border-radius: 16px; }
-  .advisor-panel-close { width: 38px; height: 38px; font-size: 24px; }
-  .advisor-panel-head { gap: 12px; padding-right: 36px; }
-  .advisor-panel-head img { width: 62px; height: 62px; }
-  .advisor-panel-head small { font-size: 17px; }
-  .advisor-panel-head strong { font-size: 21px; }
-  .advisor-panel h3 { margin-top: 20px; font-size: 31px; }
-  .advisor-panel p { font-size: 21px; line-height: 1.65; }
-  .advisor-actions a { min-height: 58px; font-size: 22px; }
+  .advisor-widget { right: 12px; bottom: 14px; width: min(338px, calc(100vw - 24px)); }
+  .advisor-avatar { width: 78px; height: 78px; border-width: 3px; }
+  .advisor-prompt { max-width: 260px; padding: 10px 16px; font-size: 15.5px; line-height: 1.35; }
+  .advisor-dismiss { top: 39px; right: -2px; }
+  .advisor-panel { padding: 18px; border-radius: 16px; }
+  .advisor-panel-head img { width: 48px; height: 48px; }
+  .advisor-panel-head small { font-size: 13px; }
+  .advisor-panel-head strong { font-size: 16px; }
+  .advisor-panel h3 { font-size: 22px; }
+  .advisor-panel p { font-size: 15.5px; }
+  .advisor-actions a { font-size: 16px; }
 }
 
 /* responsive layout refinements */
