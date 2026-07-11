@@ -450,13 +450,43 @@
   font-size: 16px;
 }
 
+.map-input-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+  padding: 16px;
+  border: 1px solid #ddd8cf;
+  border-radius: 14px;
+  background: #fbfaf7;
+}
+
+.map-input-head,
+.map-hint {
+  grid-column: 1 / -1;
+}
+
+.map-input-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.map-input-head strong { color: #253129; }
+.map-input-head small,
+.map-hint { color: #777f78; }
+.map-hint { margin: -2px 0 0; }
+
 @media (max-width: 560px) {
   .calc-head {
     flex-direction: column;
   }
 
   .land-size-inputs,
-  .calc-summary {
+  .calc-summary,
+  .map-input-card {
     grid-template-columns: 1fr;
   }
+
+  .map-input-head,
+  .map-hint { grid-column: auto; }
 }

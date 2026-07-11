@@ -39,6 +39,7 @@ create table if not exists public.land_listings (
   updated_at timestamptz not null default now()
 );
 
+-- Kept for backwards compatibility: this column now stores the optional Google Maps URL.
 alter table public.land_listings add column if not exists video_url text;
 
 create or replace function public.is_site_admin()

@@ -24,7 +24,7 @@
     contactType: null, contactDone: false, contactErr: false,
     cName: '', cPhone: '', cDate: '', cNote: '', reportReason: '', docSel: [],
     // media
-    lightbox: -1, videoOpen: false,
+    lightbox: -1,
     // search filters
     filterDistrict: 'ทุกอำเภอในปทุมธานี',
     filterBudget: 'ไม่จำกัด',
@@ -63,7 +63,7 @@
       province: row.province || 'ปทุมธานี',
       img: (row.images || [])[0] || '',
       images: row.images || [],
-      video: row.video_url || '',
+      mapUrl: googleMapUrl(row.video_url),
       price: Number(row.price),
       rai: Number(row.rai),
       sizeText: row.size_text,
@@ -140,20 +140,19 @@
     var bbox = [(lng - dLng).toFixed(4), (lat - dLat).toFixed(4), (lng + dLng).toFixed(4), (lat + dLat).toFixed(4)].join(',');
     return 'https://www.openstreetmap.org/export/embed.html?bbox=' + bbox + '&layer=mapnik&marker=' + lat.toFixed(4) + ',' + lng.toFixed(4);
   }
+  function googleMapUrl(value) {
+    var url = String(value || '').trim();
+    return /^(?:https?:\/\/)?(?:(?:(?:www|maps)\.)?google\.[^/]+(?:\/maps|\/\?q=)|maps\.app\.goo\.gl|goo\.gl\/maps)(?:\/|$|[^\s]*)/i.test(url) ? url : '';
+  }
+  function googleMapLinkFor(listing, lat, lng) {
+    return googleMapUrl(listing && listing.mapUrl) || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(lat + ',' + lng));
+  }
   function galleryImgs(l) {
     if (l && l.images && l.images.length) return l.images.filter(function (u, i, a) { return u && a.indexOf(u) === i; });
     var base = listImg(l); var a = [base];
     if (l && l.gid) { (l.gid || []).forEach(function (g) { a.push(img(g)); }); }
     return a.filter(function (u, i, all) { return u && all.indexOf(u) === i; });
   }
-  function videoEmbed(url) {
-    if (!url) return null;
-    var yt = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
-    if (yt) return { type:'iframe', src:'https://www.youtube.com/embed/' + yt[1] };
-    if (/\.(mp4|webm|ogg)(\?|$)/i.test(url)) return { type:'video', src:url };
-    return { type:'iframe', src:url };
-  }
-
   /* html-escape helpers */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;' }[c]; }); }
   function attr(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
@@ -229,7 +228,7 @@
       return true;
     });
   }
-  function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1, videoOpen: false }); scrollPageTop(); }
+  function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1 }); scrollPageTop(); }
   function toggleFav(id) { var f = state.favs.slice(); var i = f.indexOf(id); i >= 0 ? f.splice(i, 1) : f.push(id); set({ favs: f }); }
   function toggleCompare(id) { var c = state.compare.slice(); var i = c.indexOf(id); if (i >= 0) c.splice(i, 1); else if (c.length < 4) c.push(id); set({ compare: c }); }
 
@@ -237,11 +236,11 @@
   function goAdmin() { set({ page: 'admin' }); window.scrollTo(0, 0); }
   function login() { if (state.pw === '123456') set({ authed: true, pwErr: false, pw: '' }); else set({ pwErr: true }); }
   function logout() { set({ authed: false, editing: null }); }
-  function blankDraft() { return { id:null, title:'', district:'ธัญบุรี', price:'', rai:'', sizeText:'', deed:'โฉนด (นส.4)', owner:'เจ้าของขายเอง', dim:'', images:[], video:'', coord:'', tags:'', highlights:'', verified:true, ready:false, road:true, water:false, power:false, purposes:[], _imgUrl:'', _err:false }; }
+  function blankDraft() { return { id:null, title:'', district:'ธัญบุรี', price:'', rai:'', sizeText:'', deed:'โฉนด (นส.4)', owner:'เจ้าของขายเอง', dim:'', images:[], mapUrl:'', coord:'', tags:'', highlights:'', verified:true, ready:false, road:true, water:false, power:false, purposes:[], _imgUrl:'', _err:false }; }
   function openAdd() { set({ editing: blankDraft() }); }
   function openEdit(id) {
     var l = state.listings.find(function (x) { return x.id === id; }); if (!l) return;
-    set({ editing: { id:l.id, title:l.title, district:l.district, price:String(l.price), rai:String(l.rai), sizeText:l.sizeText || '', deed:l.deed, owner:l.owner, dim:l.dim || '', images:galleryImgs(l), video:l.video || '', coord:(l.lat && l.lng) ? (l.lat + ', ' + l.lng) : '', tags:(l.tags || []).join(', '), highlights:(l.highlights || []).join('\n'), verified:!!l.verified, ready:!!l.ready, road:!!l.road, water:!!l.water, power:!!l.power, purposes:(l.purposes || []).slice(), _imgUrl:'', _err:false } });
+    set({ editing: { id:l.id, title:l.title, district:l.district, price:String(l.price), rai:String(l.rai), sizeText:l.sizeText || '', deed:l.deed, owner:l.owner, dim:l.dim || '', images:galleryImgs(l), mapUrl:l.mapUrl || '', coord:(l.lat && l.lng) ? (l.lat + ', ' + l.lng) : '', tags:(l.tags || []).join(', '), highlights:(l.highlights || []).join('\n'), verified:!!l.verified, ready:!!l.ready, road:!!l.road, water:!!l.water, power:!!l.power, purposes:(l.purposes || []).slice(), _imgUrl:'', _err:false } });
   }
   function closeEdit() { set({ editing: null }); }
   function setDraft(k, v) { var d = Object.assign({}, state.editing); d[k] = v; d._err = false; set({ editing: d }); }
@@ -268,7 +267,7 @@
     var cm = (d.coord || '').match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
     if (cm) { lat = Number(cm[1]); lng = Number(cm[2]); } else { var dc = districtCoord(d.district); lat = dc[0]; lng = dc[1]; }
     var images = (d.images || []).filter(Boolean);
-    var obj = { id:d.id || ('u' + Date.now()), title:d.title.trim(), district:d.district, province:'ปทุมธานี', price:price, rai:rai, sizeText:d.sizeText.trim() || (rai + ' ไร่'), deed:d.deed, owner:d.owner, dim:d.dim.trim() || '-', images:images, video:(d.video || '').trim(), lat:lat, lng:lng, img:images[0] || '', imgId:'photo-1500382017468-9049fed747ef', gid:['photo-1523348837708-15d4a09cfac2','photo-1416879595882-3373a0480b5b'], verified:!!d.verified, ready:!!d.ready, road:!!d.road, water:!!d.water, power:!!d.power, purposes:d.purposes.slice(), tags:d.tags.split(',').map(function (s) { return s.trim(); }).filter(Boolean), highlights:d.highlights.split('\n').map(function (s) { return s.trim(); }).filter(Boolean), nearby:[], pin:{ x:Math.round(20 + Math.random() * 60), y:Math.round(15 + Math.random() * 55) } };
+    var obj = { id:d.id || ('u' + Date.now()), title:d.title.trim(), district:d.district, province:'ปทุมธานี', price:price, rai:rai, sizeText:d.sizeText.trim() || (rai + ' ไร่'), deed:d.deed, owner:d.owner, dim:d.dim.trim() || '-', images:images, mapUrl:googleMapUrl(d.mapUrl), lat:lat, lng:lng, img:images[0] || '', imgId:'photo-1500382017468-9049fed747ef', gid:['photo-1523348837708-15d4a09cfac2','photo-1416879595882-3373a0480b5b'], verified:!!d.verified, ready:!!d.ready, road:!!d.road, water:!!d.water, power:!!d.power, purposes:d.purposes.slice(), tags:d.tags.split(',').map(function (s) { return s.trim(); }).filter(Boolean), highlights:d.highlights.split('\n').map(function (s) { return s.trim(); }).filter(Boolean), nearby:[], pin:{ x:Math.round(20 + Math.random() * 60), y:Math.round(15 + Math.random() * 55) } };
     var list = state.listings.slice(); var idx = list.findIndex(function (x) { return x.id === obj.id; });
     if (idx >= 0) list[idx] = Object.assign({}, list[idx], obj); else list.unshift(obj);
     persist(list); set({ listings: list, editing: null });
@@ -485,7 +484,6 @@
     var imgs = galleryImgs(a);
     var lat = (a.lat != null) ? a.lat : districtCoord(a.district)[0];
     var lng = (a.lng != null) ? a.lng : districtCoord(a.district)[1];
-    var hasVideo = !!(a.video && a.video.trim());
     var moreCount = Math.max(0, imgs.length - 3);
 
     var badges = [a.verified ? 'ตรวจสอบเบื้องต้นแล้ว' : null, a.ready ? 'ฟรีค่าโอน' : null].filter(Boolean)
@@ -503,13 +501,7 @@
 
     var nearby = (a.nearby || []).map(function (n) { return '<li style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #E7E3DA;border-radius:10px;padding:12px 15px;font-size:13.5px;color:#4A5047"><span>' + esc(n.name) + '</span><span style="color:#8A8F84;font-weight:500">' + esc(n.dist) + '</span></li>'; }).join('');
 
-    // gallery third cell overlay
-    var thirdOverlay;
-    if (hasVideo) {
-      thirdOverlay = '<div ' + click(function () { set({ videoOpen: true }); }) + ' style="position:absolute;inset:0;background:rgba(23,55,38,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;cursor:pointer"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span style="font-size:13px;font-weight:600;margin-top:6px">ดูวิดีโอแปลง</span></div>';
-    } else {
-      thirdOverlay = '<div ' + click(function () { openLightbox(2); }) + ' style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer">' + (imgs.length > 3 ? '<span style="background:rgba(23,55,38,.6);color:#fff;font-size:15px;font-weight:700;padding:8px 16px;border-radius:20px">+' + moreCount + ' รูป</span>' : '') + '</div>';
-    }
+    var thirdOverlay = '<div ' + click(function () { openLightbox(2); }) + ' style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;cursor:pointer">' + (imgs.length > 3 ? '<span style="background:rgba(23,55,38,.6);color:#fff;font-size:15px;font-weight:700;padding:8px 16px;border-radius:20px">+' + moreCount + ' รูป</span>' : '') + '</div>';
 
     var isFav = state.favs.includes(a.id);
     var favBg = isFav ? '#FBEDEB' : '#fff', favBorder = isFav ? '#E7C9C5' : '#E7E3DA', favColor = isFav ? '#C0453B' : '#4A5047', favFill = isFav ? '#C0453B' : 'none', favLabel = isFav ? 'บันทึกแล้ว' : 'บันทึกไว้';
@@ -566,7 +558,7 @@
           '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:28px">' + purposes + '</div>' +
           '<h2 style="font-size:19px;font-weight:600;color:#1B2019;margin:0 0 12px">ทำเลและสถานที่ใกล้เคียง</h2>' +
           '<div style="border:1px solid #E7E3DA;border-radius:16px;overflow:hidden;margin-bottom:14px"><iframe title="ทำเลที่ดิน" src="' + attr(mapSrcFor(lat, lng)) + '" style="width:100%;height:360px;border:0;display:block"></iframe></div>' +
-          '<a href="https://goo.gl/maps/5wJ5fqvM26FnhvZa8?g_st=al" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;color:#1F4A34;font-size:14px;font-weight:700;margin:0 0 14px;text-decoration:none">เปิดเส้นทางใน Google Maps ↗</a>' +
+          '<a href="' + attr(googleMapLinkFor(a, lat, lng)) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;color:#1F4A34;font-size:14px;font-weight:700;margin:0 0 14px;text-decoration:none">เปิดตำแหน่งนี้ใน Google Maps ↗</a>' +
           '<ul style="list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">' + nearby + '</ul>' +
         '</div>' +
 
@@ -790,10 +782,10 @@
           '<button ' + click(addDraftImageUrl) + ' style="flex:none;background:#1F4A34;color:#fff;border:none;border-radius:11px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer">เพิ่ม</button>' +
         '</div>' +
         '<label class="upload-drop" style="display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px dashed #C9C2B2;border-radius:11px;padding:13px;font-size:13.5px;font-weight:600;color:#1F4A34;cursor:pointer;margin-bottom:18px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5M12 3v12"></path></svg>อัปโหลดรูปจากเครื่อง (เลือกหลายรูปได้)<input type="file" accept="image/*" multiple ' + onchange(function (e) { addDraftFiles(e.target.files); }) + ' style="display:none"></label>' +
-        '<label style="display:block;font-size:13px;font-weight:600;color:#3B4038;margin-bottom:6px">วิดีโอแปลง (ลิงก์ YouTube หรือไฟล์วิดีโอ)</label>' +
-        '<input data-fk="video" value="' + attr(d.video) + '" ' + oninput(function (e) { setDraft('video', e.target.value); }) + ' placeholder="https://youtu.be/... (เว้นว่างได้)" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:14px;color:#1B2019;outline:none;margin-bottom:16px">' +
         '<label style="display:block;font-size:13px;font-weight:600;color:#3B4038;margin-bottom:6px">พิกัดแผนที่ (lat, lng)</label>' +
         '<input data-fk="coord" value="' + attr(d.coord) + '" ' + oninput(function (e) { setDraft('coord', e.target.value); }) + ' placeholder="เช่น 14.0260, 100.7400 — วางจาก Google Maps (เว้นว่างจะใช้ตำแหน่งอำเภอ)" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:14px;color:#1B2019;outline:none;margin-bottom:16px">' +
+        '<label style="display:block;font-size:13px;font-weight:600;color:#3B4038;margin-bottom:6px">ลิงก์ Google Maps (ไม่บังคับ)</label>' +
+        '<input data-fk="mapUrl" value="' + attr(d.mapUrl) + '" ' + oninput(function (e) { setDraft('mapUrl', e.target.value); }) + ' placeholder="https://maps.app.goo.gl/..." style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:14px;color:#1B2019;outline:none;margin-bottom:16px">' +
         '<label style="display:block;font-size:13px;font-weight:600;color:#3B4038;margin-bottom:6px">จุดเด่นของแปลง (บรรทัดละ 1 ข้อ)</label>' +
         '<textarea data-fk="highlights" ' + oninput(function (e) { setDraft('highlights', e.target.value); }) + ' rows="3" placeholder="ติดคลองชลประทาน น้ำตลอดปี" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:14px;color:#1B2019;outline:none;resize:vertical;font-family:inherit;margin-bottom:16px">' + esc(d.highlights) + '</textarea>' +
         '<label style="display:block;font-size:13px;font-weight:600;color:#3B4038;margin-bottom:8px">เหมาะสำหรับ</label>' +
@@ -885,19 +877,6 @@
     '</div>';
   }
 
-  function videoModal() {
-    if (!state.videoOpen) return '';
-    var a = activeListing();
-    var info = (a.video && a.video.trim()) ? videoEmbed(a.video) : null;
-    var inner = '';
-    if (info && info.type === 'iframe') inner = '<iframe src="' + attr(info.src) + '" title="วิดีโอแปลงที่ดิน" allow="autoplay;encrypted-media;fullscreen" allowfullscreen style="width:100%;height:100%;border:0"></iframe>';
-    else if (info && info.type === 'video') inner = '<video src="' + attr(info.src) + '" controls autoplay style="width:100%;height:100%;background:#000"></video>';
-    return '<div ' + click(function () { set({ videoOpen: false }); }) + ' style="position:fixed;inset:0;z-index:82;background:rgba(12,20,15,.92);display:flex;align-items:center;justify-content:center;padding:40px">' +
-      '<button ' + click(function () { set({ videoOpen: false }); }) + ' aria-label="ปิด" style="position:absolute;top:22px;right:26px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);border:none;color:#fff;font-size:24px;cursor:pointer">×</button>' +
-      '<div ' + click(function (e) { e.stopPropagation(); }) + ' style="width:min(880px,90vw);aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)">' + inner + '</div>' +
-    '</div>';
-  }
-
   function switcher() {
     return '';
   }
@@ -922,7 +901,7 @@
     app.innerHTML =
       '<div style="min-height:100vh">' +
         header() + main + footer() +
-        compareBar() + compareModal() + editModal() + reviewModal() + contactModal() + lightbox() + videoModal() +
+        compareBar() + compareModal() + editModal() + reviewModal() + contactModal() + lightbox() +
         switcher() +
       '</div>';
 
@@ -950,7 +929,6 @@
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
     if (state.lightbox >= 0) return closeLightbox();
-    if (state.videoOpen) return set({ videoOpen: false });
     if (state.contactType) return closeContact();
     if (state.editing) return closeEdit();
     if (state.reviewEditing) return closeReview();
