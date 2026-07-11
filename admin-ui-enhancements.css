@@ -186,6 +186,64 @@
   cursor: default;
 }
 
+.draft-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  margin: -14px 0 20px;
+  padding: 8px 11px;
+  border: 1px solid #e4e0d7;
+  border-radius: 10px;
+  background: #f8f7f3;
+  color: #6f776f;
+  font-size: 11.5px;
+}
+
+.draft-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b9bdb7;
+}
+
+.draft-bar.saved,
+.draft-bar.restored {
+  border-color: #cfe0d4;
+  background: #eff6f1;
+  color: #24573d;
+}
+
+.draft-bar.saved .draft-dot,
+.draft-bar.restored .draft-dot {
+  background: #2f8f5b;
+}
+
+.draft-bar button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #9a443d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.draft-bar button:hover {
+  text-decoration: underline;
+}
+
+.draft-label {
+  display: inline-block;
+  border-radius: 10px;
+  background: #fff3cf;
+  color: #8d6400;
+  padding: 2px 7px;
+  font-weight: 700;
+}
+
 @media (max-width: 360px) {
   .utility-checks {
     grid-template-columns: 1fr;

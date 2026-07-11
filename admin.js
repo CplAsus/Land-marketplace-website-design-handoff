@@ -11,6 +11,8 @@
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function list(v) { return String(v || '').split(/,|\n/).map(function(x){return x.trim();}).filter(Boolean); }
   function statusText(v) { return {draft:'ฉบับร่าง',available:'พร้อมขาย',reserved:'จองแล้ว',sold:'ขายแล้ว'}[v] || v; }
+  function draftStorageKey(id){return 'saithong-admin-draft-v1:' + ((session&&session.user&&session.user.id)||'admin') + ':' + (id||'new');}
+  function hasLocalDraft(id){try{return !!localStorage.getItem(draftStorageKey(id));}catch(e){return false;}}
 
   function loginView(message) {
     root.innerHTML = '<section class="card login"><h1>เข้าสู่ระบบผู้ดูแล</h1><p class="muted">ใช้บัญชีที่ได้รับสิทธิ์จากทรายทองพัฒนา</p>' +
@@ -51,9 +53,9 @@
     var openModal = document.getElementById('editor-modal'); if (openModal) openModal.remove(); document.body.classList.remove('modal-open');
     var rows = listings.map(function (x) {
       var image = (x.images || [])[0] || 'logo.png';
-      return '<article class="listing-row"><img src="' + esc(image) + '" alt=""><div><h3>' + esc(x.title) + '</h3><p>' + esc(x.district) + ' · ฿' + Number(x.price).toLocaleString('en-US') + ' · ' + statusText(x.status) + (x.published ? ' · เผยแพร่แล้ว' : ' · ยังไม่เผยแพร่') + '</p></div><div class="row-actions"><button class="btn btn-light" data-edit="' + x.id + '">แก้ไข</button><button class="btn btn-danger" data-delete="' + x.id + '">ลบ</button></div></article>';
+      return '<article class="listing-row"><img src="' + esc(image) + '" alt=""><div><h3>' + esc(x.title) + '</h3><p>' + esc(x.district) + ' · ฿' + Number(x.price).toLocaleString('en-US') + ' · ' + statusText(x.status) + (x.published ? ' · เผยแพร่แล้ว' : ' · ยังไม่เผยแพร่') + (hasLocalDraft(x.id)?' · <span class="draft-label">มีฉบับร่าง</span>':'') + '</p></div><div class="row-actions"><button class="btn btn-light" data-edit="' + x.id + '">แก้ไข</button><button class="btn btn-danger" data-delete="' + x.id + '">ลบ</button></div></article>';
     }).join('');
-    root.innerHTML = '<div class="toolbar"><div><h1 class="panel-title">จัดการประกาศที่ดิน</h1><p class="muted" style="margin:0">ข้อมูลที่บันทึกจะแสดงกับลูกค้าทุกเครื่อง</p></div><div class="toolbar-actions"><button id="logout" class="btn btn-light">ออกจากระบบ</button><button id="add" class="btn btn-gold">+ เพิ่มที่ดิน</button></div></div><div class="list">' + (rows || '<div class="card empty">ยังไม่มีประกาศ</div>') + '</div>';
+    root.innerHTML = '<div class="toolbar"><div><h1 class="panel-title">จัดการประกาศที่ดิน</h1><p class="muted" style="margin:0">ข้อมูลที่บันทึกจะแสดงกับลูกค้าทุกเครื่อง</p></div><div class="toolbar-actions"><button id="logout" class="btn btn-light">ออกจากระบบ</button><button id="add" class="btn btn-gold">'+(hasLocalDraft(null)?'เขียนฉบับร่างต่อ':'+ เพิ่มที่ดิน')+'</button></div></div><div class="list">' + (rows || '<div class="card empty">ยังไม่มีประกาศ</div>') + '</div>';
     document.getElementById('logout').onclick = async function(){await client.auth.signOut();session=null;loginView();};
     document.getElementById('add').onclick = function(){formView(null);};
     root.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){formView(listings.find(function(x){return x.id===b.dataset.edit;}));};});
@@ -61,9 +63,13 @@
   }
 
   function formView(x) {
+    var originalId = x && x.id;
+    var draftKey = draftStorageKey(originalId);
+    var savedDraft = null;
+    try { savedDraft = JSON.parse(localStorage.getItem(draftKey) || 'null'); } catch(e) { savedDraft = null; }
     x = x || {status:'draft',province:'ปทุมธานี',district:'ลำลูกกา',deed:'โฉนด (นส.4)',owner_name:'นายหน้า',sort_order:0,road:true,water:true,power:true,transfer_fee_free:false,published:false,images:[],purposes:[]};
-    editingImages = (x.images || []).slice();
-    editingPurposes = (x.purposes || []).slice();
+    editingImages = savedDraft&&Array.isArray(savedDraft.images) ? savedDraft.images.slice() : (x.images || []).slice();
+    editingPurposes = savedDraft&&Array.isArray(savedDraft.purposes) ? savedDraft.purposes.slice() : (x.purposes || []).slice();
     var nearby = (x.nearby || []).map(function(n){return n.name + ' | ' + n.dist;}).join('\n');
     var coord = (x.latitude != null && x.longitude != null) ? (x.latitude + ', ' + x.longitude) : '';
     var sizeParts = landSizeParts(x);
@@ -71,8 +77,10 @@
     var deeds = ['โฉนด (นส.4)','น.ส.3 ก.','น.ส.3','ส.ป.ก.','โปรดสอบถามผู้ขาย'];
     var owners = ['นายหน้า','เจ้าของขายเอง','ทรายทองพัฒนา'];
     var purposeOptions = ['สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง','ร้านอาหาร'];
+    var restoredMessage = savedDraft ? 'กู้คืนฉบับร่างแล้ว · กรอกต่อได้ทันที' + (savedDraft.pendingFiles&&savedDraft.pendingFiles.length?' · โปรดเลือกรูปจากเครื่องใหม่':'') : 'ระบบจะบันทึกฉบับร่างให้อัตโนมัติ';
     var modal = document.createElement('div'); modal.id='editor-modal'; modal.className='modal-overlay';
     modal.innerHTML = '<section class="editor-modal"><div class="modal-head"><h1>' + (x.id ? 'แก้ไขประกาศที่ดิน' : 'เพิ่มประกาศที่ดิน') + '</h1><button type="button" class="modal-close" aria-label="ปิด">×</button></div>' +
+      '<div id="draft-bar" class="draft-bar '+(savedDraft?'restored':'')+'"><span class="draft-dot"></span><span id="draft-status">'+restoredMessage+'</span>'+(savedDraft?'<button type="button" id="discard-draft">ล้างฉบับร่าง</button>':'')+'</div>' +
       '<form id="listing-form"><input type="hidden" name="id" value="' + esc(x.id || '') + '"><input type="hidden" name="province" value="ปทุมธานี"><input type="hidden" name="sort_order" value="' + esc(x.sort_order || 0) + '"><div class="form-grid">' +
       field('ชื่อประกาศ *','title',x.title,'text',true,'span-2') + selectField('อำเภอ','district',x.district,districts) + selectField('เอกสารสิทธิ์','deed',x.deed,deeds) +
       field('ราคาขายรวม (บาท) *','price',x.price,'number',true,'span-2 price-input-field') +
@@ -90,20 +98,35 @@
       '<div class="field"><label>สถานะประกาศ</label><select name="status">' + ['draft','available','reserved','sold'].map(function(s){return '<option value="'+s+'" '+(x.status===s?'selected':'')+'>'+statusText(s)+'</option>';}).join('') + '</select></div></div>' +
       '<div id="form-message"></div><div class="form-actions"><button type="button" id="cancel" class="btn btn-light">ยกเลิก</button><button type="submit" class="btn btn-primary">บันทึกประกาศ</button></div></form></section>';
     document.body.appendChild(modal); document.body.classList.add('modal-open');
-    function closeModal(){modal.remove();document.body.classList.remove('modal-open');}
+    var form=modal.querySelector('#listing-form'),draftTimer=null,draftDirty=false;
+    form.dataset.draftKey=draftKey;
+    if(savedDraft&&savedDraft.values){Object.keys(savedDraft.values).forEach(function(name){var el=form.elements[name];if(!el||name==='id'||el.type==='file')return;if(el.type==='checkbox')el.checked=!!savedDraft.values[name];else el.value=savedDraft.values[name];});}
+    function draftTime(){return new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});}
+    function saveDraftNow(){
+      if(!form||!form.isConnected)return;
+      if(draftTimer){clearTimeout(draftTimer);draftTimer=null;}
+      var values={};Array.from(form.elements).forEach(function(el){if(!el.name||el.name==='id'||el.type==='file'||el.type==='submit'||el.type==='button')return;values[el.name]=el.type==='checkbox'?el.checked:el.value;});
+      var fileInput=form.elements.image_files,pendingFiles=fileInput?Array.from(fileInput.files||[]).map(function(file){return file.name;}):[];
+      try{localStorage.setItem(draftKey,JSON.stringify({values:values,images:editingImages.slice(),purposes:editingPurposes.slice(),pendingFiles:pendingFiles,savedAt:Date.now()}));var status=modal.querySelector('#draft-status'),bar=modal.querySelector('#draft-bar');if(status)status.textContent='บันทึกฉบับร่างแล้ว · '+draftTime()+(pendingFiles.length?' · รูปจากเครื่องต้องเลือกใหม่เมื่อกลับมา':'');if(bar)bar.classList.add('saved');draftDirty=false;}catch(err){var statusErr=modal.querySelector('#draft-status');if(statusErr)statusErr.textContent='พื้นที่บันทึกฉบับร่างเต็ม กรุณาบันทึกประกาศ';}
+    }
+    function scheduleDraftSave(){draftDirty=true;var bar=modal.querySelector('#draft-bar'),status=modal.querySelector('#draft-status');if(bar)bar.classList.remove('saved');if(status)status.textContent='กำลังบันทึกฉบับร่าง…';if(draftTimer)clearTimeout(draftTimer);draftTimer=setTimeout(saveDraftNow,350);}
+    function closeModal(keepDraft){if(keepDraft!==false&&draftDirty)saveDraftNow();if(draftTimer)clearTimeout(draftTimer);window.removeEventListener('beforeunload',saveDraftNow);modal.remove();document.body.classList.remove('modal-open');panelView();}
+    form._draftCleanup=function(){if(draftTimer)clearTimeout(draftTimer);window.removeEventListener('beforeunload',saveDraftNow);};
+    form.addEventListener('input',scheduleDraftSave);form.addEventListener('change',scheduleDraftSave);window.addEventListener('beforeunload',saveDraftNow);
     modal.querySelector('.modal-close').onclick=closeModal; modal.querySelector('#cancel').onclick=closeModal;
     modal.onclick=function(e){if(e.target===modal)closeModal();};
-    modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u&&editingImages.indexOf(u)<0){editingImages.push(u);input.value='';renderImages();}};
-    modal.querySelectorAll('[data-purpose]').forEach(function(b){b.onclick=function(){var p=b.dataset.purpose,i=editingPurposes.indexOf(p);if(i>=0)editingPurposes.splice(i,1);else editingPurposes.push(p);b.classList.toggle('active');};});
+    if(modal.querySelector('#discard-draft'))modal.querySelector('#discard-draft').onclick=function(){try{localStorage.removeItem(draftKey);}catch(e){}savedDraft=null;draftDirty=false;var original=originalId?listings.find(function(item){return item.id===originalId;}):null;closeModal(false);formView(original||null);};
+    modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u&&editingImages.indexOf(u)<0){editingImages.push(u);input.value='';renderImages();scheduleDraftSave();}};
+    modal.querySelectorAll('[data-purpose]').forEach(function(b){b.onclick=function(){var p=b.dataset.purpose,i=editingPurposes.indexOf(p);if(i>=0)editingPurposes.splice(i,1);else editingPurposes.push(p);b.classList.toggle('active');scheduleDraftSave();};});
     modal.querySelector('[name=image_files]').onchange=function(){renderLocalPreviews(this.files);};
     modal.querySelector('[name=price]').oninput=updateCalculatedPrices;
     modal.querySelectorAll('[name=size_rai],[name=size_ngan],[name=size_wa]').forEach(function(input){input.oninput=updateCalculatedPrices;});
     modal.querySelector('#listing-form').addEventListener('submit', saveListing);
-    function moveImage(from,to){if(from===to||from<0||to<0||from>=editingImages.length||to>=editingImages.length)return;var item=editingImages.splice(from,1)[0];editingImages.splice(to,0,item);renderImages();}
+    function moveImage(from,to){if(from===to||from<0||to<0||from>=editingImages.length||to>=editingImages.length)return;var item=editingImages.splice(from,1)[0];editingImages.splice(to,0,item);renderImages();scheduleDraftSave();}
     function renderImages(){
       var box=modal.querySelector('#images-preview');
       box.innerHTML=editingImages.map(function(u,i){return '<div class="image-thumb" draggable="true" data-image-index="'+i+'"><img src="'+esc(u)+'" alt="รูปที่ '+(i+1)+'">'+(i===0?'<span>หน้าปก</span>':'<span class="image-number">รูปที่ '+(i+1)+'</span>')+'<button type="button" data-remove-image="'+i+'" aria-label="ลบรูปที่ '+(i+1)+'">×</button><div class="image-order-actions"><button type="button" data-move-image="'+i+'" data-direction="-1" aria-label="เลื่อนรูปไปทางซ้าย" '+(i===0?'disabled':'')+'>←</button><button type="button" data-move-image="'+i+'" data-direction="1" aria-label="เลื่อนรูปไปทางขวา" '+(i===editingImages.length-1?'disabled':'')+'>→</button></div></div>';}).join('');
-      box.querySelectorAll('[data-remove-image]').forEach(function(b){b.onclick=function(){editingImages.splice(Number(b.dataset.removeImage),1);renderImages();};});
+      box.querySelectorAll('[data-remove-image]').forEach(function(b){b.onclick=function(){editingImages.splice(Number(b.dataset.removeImage),1);renderImages();scheduleDraftSave();};});
       box.querySelectorAll('[data-move-image]').forEach(function(b){b.onclick=function(){var from=Number(b.dataset.moveImage);moveImage(from,from+Number(b.dataset.direction));};});
       box.ondragstart=function(e){var card=e.target.closest('[data-image-index]');if(!card)return;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',card.dataset.imageIndex);card.classList.add('dragging');};
       box.ondragend=function(){box.querySelectorAll('.dragging,.drag-over').forEach(function(el){el.classList.remove('dragging','drag-over');});};
@@ -165,7 +188,7 @@
       if(Number(f.get('rai'))<=0)throw new Error('กรุณากรอกขนาดที่ดินอย่างน้อย 1 ตารางวา');
       var row={slug:(old&&old.slug)||('land-'+Date.now()),title:f.get('title').trim(),district:f.get('district').trim(),province:f.get('province').trim(),price:Number(f.get('price')),rai:Number(f.get('rai')),size_text:f.get('size_text').trim(),deed:f.get('deed').trim(),owner_name:f.get('owner_name').trim(),dimensions:f.get('dimensions').trim(),latitude:cm?Number(cm[1]):null,longitude:cm?Number(cm[2]):null,images:images,video_url:String(f.get('video_url')||'').trim(),tags:list(f.get('tags')),purposes:editingPurposes.slice(),highlights:list(f.get('highlights')),nearby:nearby,road:f.has('road'),water:f.has('water'),power:f.has('power'),verified:f.has('verified'),transfer_fee_free:f.has('transfer_fee_free'),published:f.has('published'),status:f.get('status'),sort_order:Number(f.get('sort_order')||0)};
       var result=id?await client.from('land_listings').update(row).eq('id',id):await client.from('land_listings').insert(row);
-      if(result.error) throw result.error; await loadListings();
+      if(result.error) throw result.error; try{if(form.dataset.draftKey)localStorage.removeItem(form.dataset.draftKey);}catch(e){} if(form._draftCleanup)form._draftCleanup(); await loadListings();
     } catch(err){if(btn) btn.disabled=false;msg.innerHTML='<div class="error">บันทึกไม่สำเร็จ: '+esc(err.message)+'</div>';}
   }
 
