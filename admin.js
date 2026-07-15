@@ -7,6 +7,10 @@
   var listings = [];
   var editingImages = [];
   var editingPurposes = [];
+  var PROVINCE_DISTRICTS = {
+    'ปทุมธานี': ['เมืองปทุมธานี','คลองหลวง','ธัญบุรี','หนองเสือ','ลาดหลุมแก้ว','ลำลูกกา','สามโคก'],
+    'นครนายก': ['เมืองนครนายก','ปากพลี','บ้านนา','องครักษ์']
+  };
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   function list(v) { return String(v || '').split(/,|\n/).map(function(x){return x.trim();}).filter(Boolean); }
@@ -16,6 +20,12 @@
     return m ? (Number(m[1]) + ', ' + Number(m[2])) : '';
   }
   function statusText(v) { return {draft:'ฉบับร่าง',available:'พร้อมขาย',reserved:'จองแล้ว',sold:'ขายแล้ว'}[v] || v; }
+  function districtsForProvince(province) { return (PROVINCE_DISTRICTS[province] || PROVINCE_DISTRICTS['ปทุมธานี']).slice(); }
+  function parsePrice(v) { return Number(String(v == null ? '' : v).replace(/,/g, '').replace(/[^0-9]/g, '')) || 0; }
+  function formatPriceInput(v) {
+    var digits = String(v == null ? '' : v).replace(/[^0-9]/g, '');
+    return digits ? Number(digits).toLocaleString('en-US') : '';
+  }
   function draftStorageKey(id){return 'saithong-admin-draft-v1:' + ((session&&session.user&&session.user.id)||'admin') + ':' + (id||'new');}
   function hasLocalDraft(id){try{return !!localStorage.getItem(draftStorageKey(id));}catch(e){return false;}}
 
@@ -58,7 +68,7 @@
     var openModal = document.getElementById('editor-modal'); if (openModal) openModal.remove(); document.body.classList.remove('modal-open');
     var rows = listings.map(function (x) {
       var image = (x.images || [])[0] || 'logo.png';
-      return '<article class="listing-row"><img src="' + esc(image) + '" alt=""><div><h3>' + esc(x.title) + '</h3><p>' + esc(x.district) + ' · ฿' + Number(x.price).toLocaleString('en-US') + ' · ' + statusText(x.status) + (x.published ? ' · เผยแพร่แล้ว' : ' · ยังไม่เผยแพร่') + (hasLocalDraft(x.id)?' · <span class="draft-label">มีฉบับร่าง</span>':'') + '</p></div><div class="row-actions"><button class="btn btn-light" data-edit="' + x.id + '">แก้ไข</button><button class="btn btn-danger" data-delete="' + x.id + '">ลบ</button></div></article>';
+      return '<article class="listing-row"><img src="' + esc(image) + '" alt=""><div><h3>' + esc(x.title) + '</h3><p>' + esc(x.district) + ' · ' + esc(x.province || 'ปทุมธานี') + ' · ฿' + Number(x.price).toLocaleString('en-US') + ' · ' + statusText(x.status) + (x.published ? ' · เผยแพร่แล้ว' : ' · ยังไม่เผยแพร่') + (hasLocalDraft(x.id)?' · <span class="draft-label">มีฉบับร่าง</span>':'') + '</p></div><div class="row-actions"><button class="btn btn-light" data-edit="' + x.id + '">แก้ไข</button><button class="btn btn-danger" data-delete="' + x.id + '">ลบ</button></div></article>';
     }).join('');
     root.innerHTML = '<div class="toolbar"><div><h1 class="panel-title">จัดการประกาศที่ดิน</h1><p class="muted" style="margin:0">ข้อมูลที่บันทึกจะแสดงกับลูกค้าทุกเครื่อง</p></div><div class="toolbar-actions"><button id="logout" class="btn btn-light">ออกจากระบบ</button><button id="add" class="btn btn-gold">'+(hasLocalDraft(null)?'เขียนฉบับร่างต่อ':'+ เพิ่มที่ดิน')+'</button></div></div><div class="list">' + (rows || '<div class="card empty">ยังไม่มีประกาศ</div>') + '</div>';
     document.getElementById('logout').onclick = async function(){await client.auth.signOut();session=null;loginView();};
@@ -79,7 +89,11 @@
     var coord = (x.latitude != null && x.longitude != null) ? (x.latitude + ', ' + x.longitude) : '';
     var mapLink = googleMapUrl(x.video_url);
     var sizeParts = landSizeParts(x);
-    var districts = ['เมืองปทุมธานี','คลองหลวง','ธัญบุรี','หนองเสือ','ลาดหลุมแก้ว','ลำลูกกา','สามโคก'];
+    var initialProvince = (savedDraft && savedDraft.values && savedDraft.values.province) || x.province || 'ปทุมธานี';
+    if (!PROVINCE_DISTRICTS[initialProvince]) initialProvince = 'ปทุมธานี';
+    var districts = districtsForProvince(initialProvince);
+    var initialDistrict = (savedDraft && savedDraft.values && savedDraft.values.district) || x.district || districts[0];
+    if (districts.indexOf(initialDistrict) < 0) initialDistrict = districts[0];
     var deeds = ['โฉนด (นส.4)','น.ส.3 ก.','น.ส.3','ส.ป.ก.','โปรดสอบถามผู้ขาย'];
     var owners = ['นายหน้า','เจ้าของขายเอง','ทรายทองพัฒนา'];
     var purposeOptions = ['สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง','ร้านอาหาร'];
@@ -87,9 +101,9 @@
     var modal = document.createElement('div'); modal.id='editor-modal'; modal.className='modal-overlay';
     modal.innerHTML = '<section class="editor-modal"><div class="modal-head"><h1>' + (x.id ? 'แก้ไขประกาศที่ดิน' : 'เพิ่มประกาศที่ดิน') + '</h1><button type="button" class="modal-close" aria-label="ปิด">×</button></div>' +
       '<div id="draft-bar" class="draft-bar '+(savedDraft?'restored':'')+'"><span class="draft-dot"></span><span id="draft-status">'+restoredMessage+'</span>'+(savedDraft?'<button type="button" id="discard-draft">ล้างฉบับร่าง</button>':'')+'</div>' +
-      '<form id="listing-form"><input type="hidden" name="id" value="' + esc(x.id || '') + '"><input type="hidden" name="province" value="ปทุมธานี"><input type="hidden" name="sort_order" value="' + esc(x.sort_order || 0) + '"><div class="form-grid">' +
-      field('ชื่อประกาศ *','title',x.title,'text',true,'span-2') + selectField('อำเภอ','district',x.district,districts) + selectField('เอกสารสิทธิ์','deed',x.deed,deeds) +
-      field('ราคาขายรวม (บาท) *','price',x.price,'number',true,'span-2 price-input-field') +
+      '<form id="listing-form"><input type="hidden" name="id" value="' + esc(x.id || '') + '"><input type="hidden" name="sort_order" value="' + esc(x.sort_order || 0) + '"><div class="form-grid">' +
+      field('ชื่อประกาศ *','title',x.title,'text',true,'span-2') + selectField('จังหวัด','province',initialProvince,Object.keys(PROVINCE_DISTRICTS)) + selectField('อำเภอ','district',initialDistrict,districts) + selectField('เอกสารสิทธิ์','deed',x.deed,deeds,'span-2') +
+      field('ราคาขายรวม (บาท) *','price',formatPriceInput(x.price),'text',true,'span-2 price-input-field') +
       '<div class="land-calc-card span-2"><div class="calc-head"><div><strong>ขนาดที่ดิน</strong><small>กรอกแยกเป็น ไร่–งาน–ตารางวา ระบบจะคำนวณให้ทันที</small></div><span>1 ไร่ = 400 ตร.ว.</span></div>' +
         '<div class="land-size-inputs"><div class="field"><label>ไร่</label><input name="size_rai" type="number" min="0" step="1" inputmode="numeric" value="'+esc(sizeParts.rai)+'"></div><div class="field"><label>งาน</label><input name="size_ngan" type="number" min="0" step="1" inputmode="numeric" value="'+esc(sizeParts.ngan)+'"></div><div class="field"><label>ตารางวา</label><input name="size_wa" type="number" min="0" step="any" inputmode="decimal" value="'+esc(sizeParts.wa)+'"></div></div>' +
         '<input type="hidden" name="rai" value="'+esc(x.rai || '')+'"><input type="hidden" name="size_text" value="'+esc(x.size_text || '')+'">' +
@@ -128,7 +142,16 @@
     modal.querySelector('#add-url').onclick=function(){var input=modal.querySelector('#image-url'),u=input.value.trim();if(u&&editingImages.indexOf(u)<0){editingImages.push(u);input.value='';renderImages();scheduleDraftSave();}};
     modal.querySelectorAll('[data-purpose]').forEach(function(b){b.onclick=function(){var p=b.dataset.purpose,i=editingPurposes.indexOf(p);if(i>=0)editingPurposes.splice(i,1);else editingPurposes.push(p);b.classList.toggle('active');scheduleDraftSave();};});
     modal.querySelector('[name=image_files]').onchange=function(){renderLocalPreviews(this.files);};
-    modal.querySelector('[name=price]').oninput=updateCalculatedPrices;
+    var provinceInput=modal.querySelector('[name=province]'),districtInput=modal.querySelector('[name=district]');
+    provinceInput.addEventListener('change',function(){
+      var options=districtsForProvince(this.value),current=districtInput.value;
+      districtInput.innerHTML=options.map(function(name){return '<option value="'+esc(name)+'">'+esc(name)+'</option>';}).join('');
+      districtInput.value=options.indexOf(current)>=0?current:options[0];
+      districtInput.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+    var priceInput=modal.querySelector('[name=price]');
+    priceInput.value=formatPriceInput(priceInput.value);
+    priceInput.oninput=function(){this.value=formatPriceInput(this.value);updateCalculatedPrices();};
     modal.querySelectorAll('[name=size_rai],[name=size_ngan],[name=size_wa]').forEach(function(input){input.oninput=updateCalculatedPrices;});
     modal.querySelector('[name=map_url]').addEventListener('change', function(){var parsed=coordinatesFromMapUrl(this.value),coordInput=modal.querySelector('[name=coordinates]');if(parsed){coordInput.value=parsed;scheduleDraftSave();}});
     modal.querySelector('#listing-form').addEventListener('submit', saveListing);
@@ -145,7 +168,7 @@
     }
     function renderLocalPreviews(files){var box=modal.querySelector('#images-preview');Array.from(files||[]).forEach(function(file){var u=URL.createObjectURL(file),d=document.createElement('div');d.className='image-thumb pending';d.innerHTML='<img src="'+u+'" alt=""><span>รูปใหม่</span>';box.appendChild(d);});}
     function updateCalculatedPrices(){
-      var price=Number(modal.querySelector('[name=price]').value)||0;
+      var price=parsePrice(modal.querySelector('[name=price]').value);
       var rai=Math.max(0,Number(modal.querySelector('[name=size_rai]').value)||0),ngan=Math.max(0,Number(modal.querySelector('[name=size_ngan]').value)||0),wa=Math.max(0,Number(modal.querySelector('[name=size_wa]').value)||0);
       var totalWa=(rai*400)+(ngan*100)+wa,totalRai=totalWa/400;
       modal.querySelector('[name=rai]').value=totalRai||'';
@@ -158,9 +181,9 @@
     renderImages(); updateCalculatedPrices();
   }
 
-  function field(label,name,value,type,required,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+(type==='number'?'step="any" ':'')+(required?'required':'')+'></div>';}
+  function field(label,name,value,type,required,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><input name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+(type==='number'?'step="any" ':'')+(name==='price'?'inputmode="numeric" autocomplete="off" ':'')+(required?'required':'')+'></div>';}
   function area(label,name,value,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><textarea name="'+name+'">'+esc(value)+'</textarea></div>';}
-  function selectField(label,name,value,options){return '<div class="field"><label>'+label+'</label><select name="'+name+'">'+options.map(function(o){return '<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select></div>';}
+  function selectField(label,name,value,options,cls){return '<div class="field '+(cls||'')+'"><label>'+label+'</label><select name="'+name+'">'+options.map(function(o){return '<option value="'+esc(o)+'" '+(o===value?'selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select></div>';}
   function check(name,label,yes,description,cls){return '<label class="utility-option '+(cls||'')+'"><input type="checkbox" name="'+name+'" '+(yes?'checked':'')+'><span class="utility-mark" aria-hidden="true"></span><span class="utility-copy"><strong>'+label+'</strong>'+(description?'<small>'+description+'</small>':'')+'</span></label>';}
 
   function formatNumber(n){return Number.isInteger(n)?String(n):Number(n.toFixed(4)).toString();}
@@ -200,7 +223,7 @@
       if(String(f.get('map_url')||'').trim()&&!mapUrl)throw new Error('กรุณาใช้ลิงก์จาก Google Maps เท่านั้น');
       if(mapUrl&&!cm)throw new Error('ลิงก์แบบย่อไม่แสดงพิกัด กรุณากรอกพิกัดละติจูดและลองจิจูดเพิ่มเติม');
       if(Number(f.get('rai'))<=0)throw new Error('กรุณากรอกขนาดที่ดินอย่างน้อย 1 ตารางวา');
-      var row={slug:(old&&old.slug)||('land-'+Date.now()),title:f.get('title').trim(),district:f.get('district').trim(),province:f.get('province').trim(),price:Number(f.get('price')),rai:Number(f.get('rai')),size_text:f.get('size_text').trim(),deed:f.get('deed').trim(),owner_name:f.get('owner_name').trim(),dimensions:f.get('dimensions').trim(),latitude:cm?Number(cm[1]):null,longitude:cm?Number(cm[2]):null,images:images,video_url:mapUrl,tags:list(f.get('tags')),purposes:editingPurposes.slice(),highlights:list(f.get('highlights')),nearby:nearby,road:f.has('road'),water:f.has('water'),power:f.has('power'),verified:f.has('verified'),transfer_fee_free:f.has('transfer_fee_free'),published:f.has('published'),status:f.get('status'),sort_order:Number(f.get('sort_order')||0)};
+      var row={slug:(old&&old.slug)||('land-'+Date.now()),title:f.get('title').trim(),district:f.get('district').trim(),province:f.get('province').trim(),price:parsePrice(f.get('price')),rai:Number(f.get('rai')),size_text:f.get('size_text').trim(),deed:f.get('deed').trim(),owner_name:f.get('owner_name').trim(),dimensions:f.get('dimensions').trim(),latitude:cm?Number(cm[1]):null,longitude:cm?Number(cm[2]):null,images:images,video_url:mapUrl,tags:list(f.get('tags')),purposes:editingPurposes.slice(),highlights:list(f.get('highlights')),nearby:nearby,road:f.has('road'),water:f.has('water'),power:f.has('power'),verified:f.has('verified'),transfer_fee_free:f.has('transfer_fee_free'),published:f.has('published'),status:f.get('status'),sort_order:Number(f.get('sort_order')||0)};
       var result=id?await client.from('land_listings').update(row).eq('id',id):await client.from('land_listings').insert(row);
       if(result.error) throw result.error; try{if(form.dataset.draftKey)localStorage.removeItem(form.dataset.draftKey);}catch(e){} if(form._draftCleanup)form._draftCleanup(); await loadListings();
     } catch(err){if(btn) btn.disabled=false;msg.innerHTML='<div class="error">บันทึกไม่สำเร็จ: '+esc(err.message)+'</div>';}

@@ -28,7 +28,7 @@
     // media
     lightbox: -1,
     // search filters
-    filterDistrict: 'ทุกอำเภอในปทุมธานี',
+    filterDistrict: 'ทุกพื้นที่',
     filterBudget: 'ไม่จำกัด',
     filterSize: 'ทุกขนาด',
     filterPurpose: 'ทุกประเภท',
@@ -134,7 +134,12 @@
   function short(n) { return (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'ล'; }
 
   function districtCoord(d) {
-    var m = { 'ธัญบุรี':[14.026,100.740], 'คลองหลวง':[14.066,100.646], 'ลำลูกกา':[13.958,100.760], 'หนองเสือ':[14.132,100.820], 'สามโคก':[14.060,100.530], 'ลาดหลุมแก้ว':[14.040,100.470], 'เมืองปทุมธานี':[14.021,100.525] };
+    var m = {
+      'ธัญบุรี':[14.026,100.740], 'คลองหลวง':[14.066,100.646], 'ลำลูกกา':[13.958,100.760],
+      'หนองเสือ':[14.132,100.820], 'สามโคก':[14.060,100.530], 'ลาดหลุมแก้ว':[14.040,100.470],
+      'เมืองปทุมธานี':[14.021,100.525], 'เมืองนครนายก':[14.207,101.213], 'ปากพลี':[14.164,101.268],
+      'บ้านนา':[14.272,101.064], 'องครักษ์':[14.121,100.995]
+    };
     return m[d] || [14.02, 100.60];
   }
   function mapSrcFor(lat, lng) {
@@ -206,12 +211,14 @@
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: 'smooth' });
   }
   function clearFilters() {
-    set({ filterDistrict:'ทุกอำเภอในปทุมธานี', filterBudget:'ไม่จำกัด', filterSize:'ทุกขนาด', filterPurpose:'ทุกประเภท' });
+    set({ filterDistrict:'ทุกพื้นที่', filterBudget:'ไม่จำกัด', filterSize:'ทุกขนาด', filterPurpose:'ทุกประเภท' });
     setTimeout(scrollFeatured, 0);
   }
   function filteredListings() {
     return state.listings.filter(function (l) {
-      if (state.filterDistrict !== 'ทุกอำเภอในปทุมธานี' && l.district !== state.filterDistrict) return false;
+      if (state.filterDistrict === 'ปทุมธานี (ทุกอำเภอ)' && l.province !== 'ปทุมธานี') return false;
+      if (state.filterDistrict === 'นครนายก (ทุกอำเภอ)' && l.province !== 'นครนายก') return false;
+      if (state.filterDistrict !== 'ทุกพื้นที่' && state.filterDistrict !== 'ปทุมธานี (ทุกอำเภอ)' && state.filterDistrict !== 'นครนายก (ทุกอำเภอ)' && l.district !== state.filterDistrict) return false;
       var p = Number(l.price) || 0, r = Number(l.rai) || 0;
       if (state.filterBudget === 'ต่ำกว่า 1 ล้าน' && !(p < 1000000)) return false;
       if (state.filterBudget === '1 - 3 ล้าน' && !(p >= 1000000 && p <= 3000000)) return false;
@@ -375,7 +382,7 @@
           '<div style="width:46px;height:46px;border-radius:50%;overflow:hidden;background:#fff;border:1px solid #EFE3D0;flex:none;box-shadow:0 2px 8px rgba(31,74,52,.15)"><img src="' + LOGO + '" alt="ทรายทองพัฒนา" style="width:100%;height:100%;object-fit:cover;transform:scale(1.05)"></div>' +
           '<div style="line-height:1.05">' +
             '<div style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:21.5px;color:#1F4A34">ทรายทองพัฒนา</div>' +
-            '<div style="font-size:13.7px;color:#8A8F84;letter-spacing:.3px;font-weight:500">ที่ดินสายคลอง · ปทุมธานี</div>' +
+            '<div style="font-size:13.7px;color:#8A8F84;letter-spacing:.3px;font-weight:500">ที่ดินสายคลอง · ปทุมธานี · นครนายก</div>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -391,7 +398,7 @@
   function home() {
     var filtered = filteredListings();
     var featured = filtered.map(landCard).join('');
-    var hasFilters = state.filterDistrict !== 'ทุกอำเภอในปทุมธานี' || state.filterBudget !== 'ไม่จำกัด' || state.filterSize !== 'ทุกขนาด' || state.filterPurpose !== 'ทุกประเภท';
+    var hasFilters = state.filterDistrict !== 'ทุกพื้นที่' || state.filterBudget !== 'ไม่จำกัด' || state.filterSize !== 'ทุกขนาด' || state.filterPurpose !== 'ทุกประเภท';
     var resultText = hasFilters ? 'พบ ' + filtered.length + ' แปลงตามตัวกรองที่เลือก' : 'ข้อมูล ราคา และรูปภาพจากทรายทองพัฒนา';
     var emptyResults = '<div style="grid-column:1/-1;text-align:center;background:#fff;border:1px solid #E7E3DA;border-radius:16px;padding:42px 20px;color:#6B7065"><div style="font-size:23.4px;font-weight:700;color:#1F4A34;margin-bottom:6px">ไม่พบที่ดินตามเงื่อนไข</div><div style="font-size:18.2px;margin-bottom:16px">ลองเปลี่ยนงบประมาณ ขนาด หรือวัตถุประสงค์</div><button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer">ล้างตัวกรอง</button></div>';
 
@@ -442,9 +449,9 @@
         '<div class="hero-inner" style="position:relative;max-width:1240px;margin:0 auto;padding:76px 24px 92px">' +
           '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(235,217,168,.16);border:1px solid rgba(235,217,168,.4);color:#EBD9A8;font-size:16.9px;font-weight:500;padding:7px 14px;border-radius:30px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#7ED9A0"></span>ซื้อขายที่ดินปทุมธานี ราคาถูก สายคลอง by ทรายทองพัฒนา</div>' +
           '<h1 class="hero-h1" style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:67.6px;line-height:1.18;color:#fff;margin:0 0 18px;max-width:820px;letter-spacing:-.5px">ค้นหาที่ดินที่ใช่<br>สำหรับบ้าน ธุรกิจ และการลงทุน</h1>' +
-          '<p style="font-size:23.4px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:610px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานีและพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
+          '<p style="font-size:23.4px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:680px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานี นครนายก และพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
           '<div class="hero-search" style="background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(20,40,28,.28);padding:12px;display:flex;align-items:stretch;gap:2px">' +
-            '<div class="hov-soft search-field" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:15.6px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกอำเภอในปทุมธานี','ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
+            '<div class="hov-soft search-field" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:15.6px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกพื้นที่','ปทุมธานี (ทุกอำเภอ)','เมืองปทุมธานี','คลองหลวง','ธัญบุรี','หนองเสือ','ลาดหลุมแก้ว','ลำลูกกา','สามโคก','นครนายก (ทุกอำเภอ)','เมืองนครนายก','ปากพลี','บ้านนา','องครักษ์'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
             '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
             '<div class="hov-soft search-field" style="flex:1;padding:12px 18px;border-radius:14px"><div style="font-size:15.6px;font-weight:600;color:#1F4A34;margin-bottom:3px">งบประมาณ</div>' + heroSelect(['ไม่จำกัด','ต่ำกว่า 1 ล้าน','1 - 3 ล้าน','3 - 5 ล้าน','5 - 10 ล้าน','มากกว่า 10 ล้าน'],state.filterBudget,function(e){set({filterBudget:e.target.value});}) + '</div>' +
             '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
