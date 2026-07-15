@@ -97,7 +97,11 @@
       if (!res.ok) throw new Error('Unable to load listings');
       return res.json();
     }).then(function (rows) {
-      if (Array.isArray(rows) && rows.length) set({ listings: rows.map(remoteListing), activeId: rows[0].id });
+      if (Array.isArray(rows) && rows.length) {
+        var mapped = rows.map(remoteListing);
+        mapped[0].featured = true;
+        set({ listings: mapped, activeId: rows[0].id });
+      }
     }).catch(function () {
       // Keep the embedded verified listing available if the backend is temporarily offline.
     });
@@ -331,6 +335,7 @@
   function landCard(l) {
     var v = vmCard(l);
     var badge = '';
+    if (l.featured) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:14.3px;font-weight:700;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">★ ที่ดินแนะนำ</span>';
     if (l.verified) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.94);color:#1F4A34;font-size:14.3px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.12)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>ตรวจสอบแล้ว</span>';
     if (l.ready) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:14.3px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">ฟรีค่าโอน</span>';
 

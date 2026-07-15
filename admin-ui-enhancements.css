@@ -126,6 +126,34 @@
   }
 }
 
+.listing-row.is-featured {
+  border-color: #d9b65b;
+  box-shadow: 0 6px 18px rgba(227, 168, 30, .12);
+}
+
+.btn-feature {
+  background: #fff7dd;
+  color: #765700;
+  border: 1px solid #ebd28a;
+}
+
+.btn-feature:hover {
+  background: #f6e7af;
+}
+
+.top-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 45px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  background: #e3a81e;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .image-order-hint {
   margin-bottom: 2px;
 }
