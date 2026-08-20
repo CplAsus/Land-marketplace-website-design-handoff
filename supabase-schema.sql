@@ -3,6 +3,10 @@
 
 create extension if not exists pgcrypto;
 
+create schema if not exists private;
+revoke all on schema private from public;
+grant usage on schema private to anon, authenticated, service_role;
+
 create table if not exists public.site_admins (
   user_id uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
@@ -39,10 +43,40 @@ create table if not exists public.land_listings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.customer_leads (
+  id uuid primary key default gen_random_uuid(),
+  listing_id uuid references public.land_listings(id) on delete set null,
+  listing_title text not null default '',
+  customer_name text not null check (char_length(customer_name) between 2 and 120),
+  phone text not null check (char_length(regexp_replace(phone, '[^0-9]', '', 'g')) between 9 and 15),
+  line_id text check (line_id is null or char_length(line_id) <= 100),
+  request_type text not null default 'interest'
+    check (request_type in ('interest','appt','docs','report')),
+  appointment_date date,
+  message text check (message is null or char_length(message) <= 2000),
+  requested_documents text[] not null default '{}',
+  report_reason text,
+  source text not null default 'website' check (char_length(source) <= 500),
+  status text not null default 'new'
+    check (status in ('new','contacted','appointment','closed')),
+  admin_note text check (admin_note is null or char_length(admin_note) <= 4000),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists customer_leads_created_at_idx
+on public.customer_leads (created_at desc);
+
+create index if not exists customer_leads_status_created_at_idx
+on public.customer_leads (status, created_at desc);
+
+create index if not exists customer_leads_listing_id_idx
+on public.customer_leads (listing_id);
+
 -- Kept for backwards compatibility: this column now stores the optional Google Maps URL.
 alter table public.land_listings add column if not exists video_url text;
 
-create or replace function public.is_site_admin()
+create or replace function private.is_site_admin()
 returns boolean
 language sql
 stable
@@ -54,9 +88,13 @@ as $$
   );
 $$;
 
+revoke all on function private.is_site_admin() from public;
+grant execute on function private.is_site_admin() to anon, authenticated, service_role;
+
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
+set search_path = public
 as $$
 begin
   new.updated_at = now();
@@ -64,38 +102,94 @@ begin
 end;
 $$;
 
+drop trigger if exists land_listings_touch_updated_at on public.land_listings;
 create trigger land_listings_touch_updated_at
 before update on public.land_listings
 for each row execute function public.touch_updated_at();
 
+drop trigger if exists customer_leads_touch_updated_at on public.customer_leads;
+create trigger customer_leads_touch_updated_at
+before update on public.customer_leads
+for each row execute function public.touch_updated_at();
+
 alter table public.site_admins enable row level security;
 alter table public.land_listings enable row level security;
+alter table public.customer_leads enable row level security;
 
+revoke all on table public.customer_leads from anon, authenticated;
+grant insert (
+  listing_id, listing_title, customer_name, phone, line_id, request_type,
+  appointment_date, message, requested_documents, report_reason, source
+) on table public.customer_leads to anon;
+grant select, insert, update, delete on table public.customer_leads to authenticated;
+grant select, insert, update, delete on table public.customer_leads to service_role;
+
+drop policy if exists "Visitors can submit leads" on public.customer_leads;
+create policy "Visitors can submit leads"
+on public.customer_leads for insert
+to anon
+with check (
+  status = 'new'
+  and admin_note is null
+  and char_length(customer_name) between 2 and 120
+  and char_length(regexp_replace(phone, '[^0-9]', '', 'g')) between 9 and 15
+);
+
+drop policy if exists "Admins can read leads" on public.customer_leads;
+create policy "Admins can read leads"
+on public.customer_leads for select
+to authenticated
+using (private.is_site_admin());
+
+drop policy if exists "Admins can insert leads" on public.customer_leads;
+create policy "Admins can insert leads"
+on public.customer_leads for insert
+to authenticated
+with check (private.is_site_admin());
+
+drop policy if exists "Admins can update leads" on public.customer_leads;
+create policy "Admins can update leads"
+on public.customer_leads for update
+to authenticated
+using (private.is_site_admin())
+with check (private.is_site_admin());
+
+drop policy if exists "Admins can delete leads" on public.customer_leads;
+create policy "Admins can delete leads"
+on public.customer_leads for delete
+to authenticated
+using (private.is_site_admin());
+
+drop policy if exists "Public can read published listings" on public.land_listings;
 create policy "Public can read published listings"
 on public.land_listings for select
 to anon, authenticated
-using (published = true or public.is_site_admin());
+using (published = true or private.is_site_admin());
 
+drop policy if exists "Admins can insert listings" on public.land_listings;
 create policy "Admins can insert listings"
 on public.land_listings for insert
 to authenticated
-with check (public.is_site_admin());
+with check (private.is_site_admin());
 
+drop policy if exists "Admins can update listings" on public.land_listings;
 create policy "Admins can update listings"
 on public.land_listings for update
 to authenticated
-using (public.is_site_admin())
-with check (public.is_site_admin());
+using (private.is_site_admin())
+with check (private.is_site_admin());
 
+drop policy if exists "Admins can delete listings" on public.land_listings;
 create policy "Admins can delete listings"
 on public.land_listings for delete
 to authenticated
-using (public.is_site_admin());
+using (private.is_site_admin());
 
+drop policy if exists "Admins can view own membership" on public.site_admins;
 create policy "Admins can view own membership"
 on public.site_admins for select
 to authenticated
-using (user_id = auth.uid());
+using (user_id = (select auth.uid()));
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
@@ -110,26 +204,30 @@ on conflict (id) do update set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists "Public can view land images" on storage.objects;
 create policy "Public can view land images"
 on storage.objects for select
 to public
 using (bucket_id = 'land-images');
 
+drop policy if exists "Admins can upload land images" on storage.objects;
 create policy "Admins can upload land images"
 on storage.objects for insert
 to authenticated
-with check (bucket_id = 'land-images' and public.is_site_admin());
+with check (bucket_id = 'land-images' and private.is_site_admin());
 
+drop policy if exists "Admins can update land images" on storage.objects;
 create policy "Admins can update land images"
 on storage.objects for update
 to authenticated
-using (bucket_id = 'land-images' and public.is_site_admin())
-with check (bucket_id = 'land-images' and public.is_site_admin());
+using (bucket_id = 'land-images' and private.is_site_admin())
+with check (bucket_id = 'land-images' and private.is_site_admin());
 
+drop policy if exists "Admins can delete land images" on storage.objects;
 create policy "Admins can delete land images"
 on storage.objects for delete
 to authenticated
-using (bucket_id = 'land-images' and public.is_site_admin());
+using (bucket_id = 'land-images' and private.is_site_admin());
 
 insert into public.land_listings (
   slug, title, district, province, price, rai, size_text, deed, owner_name,

@@ -21,8 +21,8 @@
     // admin
     authed: false, pw: '', pwErr: false, editing: null, reviewEditing: null,
     // contact modal
-    contactType: null, contactDone: false, contactErr: false,
-    cName: '', cPhone: '', cDate: '', cNote: '', reportReason: '', docSel: [],
+    contactType: null, contactDone: false, contactErr: false, contactErrorMessage: '', contactSubmitting: false,
+    cName: '', cPhone: '', cLine: '', cDate: '', cNote: '', cWebsite: '', contactConsent: false, reportReason: '', docSel: [],
     // floating advisor
     advisorOpen: false, advisorHidden: false,
     // media
@@ -305,10 +305,50 @@
   function deleteReview(id) { if (window.confirm && !window.confirm('ลบรีวิวนี้?')) return; var list = state.reviews.filter(function (x) { return x.id !== id; }); persistReviews(list); set({ reviews: list }); }
 
   // contact
-  function openContact(type) { set({ contactType:type, contactDone:false, contactErr:false, cName:'', cPhone:'', cDate:'', cNote:'', reportReason:'', docSel:[] }); }
+  function openContact(type) { set({ contactType:type, contactDone:false, contactErr:false, contactErrorMessage:'', contactSubmitting:false, cName:'', cPhone:'', cLine:'', cDate:'', cNote:'', cWebsite:'', contactConsent:false, reportReason:'', docSel:[], advisorOpen:false }); }
   function closeContact() { set({ contactType: null }); }
   function toggleDoc(v) { var arr = state.docSel.slice(); var i = arr.indexOf(v); i >= 0 ? arr.splice(i, 1) : arr.push(v); set({ docSel: arr }); }
-  function submitContact() { if (!state.cName.trim() || !state.cPhone.trim()) { set({ contactErr: true }); return; } set({ contactDone: true, contactErr: false }); }
+  async function submitContact() {
+    if (state.contactSubmitting) return;
+    var name = state.cName.trim(), phone = state.cPhone.trim(), phoneDigits = phone.replace(/\D/g, '');
+    if (!name || phoneDigits.length < 9 || phoneDigits.length > 15 || !state.contactConsent) {
+      set({ contactErr: true, contactErrorMessage: !state.contactConsent ? 'กรุณายินยอมให้ทีมงานติดต่อกลับ' : 'กรุณากรอกชื่อและเบอร์โทรที่ติดต่อได้' });
+      return;
+    }
+    // Honeypot: bots often fill this hidden field. Show success without storing spam.
+    if (state.cWebsite.trim()) { set({ contactDone:true, contactErr:false, contactSubmitting:false }); return; }
+    var cfg = window.SUPABASE_CONFIG, listing = activeListing();
+    if (!cfg || !cfg.url || !cfg.publishableKey) {
+      set({ contactErr:true, contactErrorMessage:'ระบบรับข้อมูลยังไม่พร้อม กรุณาโทร 097-428-7891', contactSubmitting:false });
+      return;
+    }
+    var listingId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(listing.id || '')) ? listing.id : null;
+    var payload = {
+      listing_id: listingId,
+      listing_title: String(listing.title || '').slice(0, 300),
+      customer_name: name.slice(0, 120),
+      phone: phone.slice(0, 40),
+      line_id: state.cLine.trim() ? state.cLine.trim().slice(0, 100) : null,
+      request_type: state.contactType || 'interest',
+      appointment_date: state.cDate || null,
+      message: state.cNote.trim() ? state.cNote.trim().slice(0, 2000) : null,
+      requested_documents: state.docSel.slice(0, 10),
+      report_reason: state.reportReason || null,
+      source: (window.location.origin + window.location.pathname).slice(0, 500)
+    };
+    set({ contactSubmitting:true, contactErr:false, contactErrorMessage:'' });
+    try {
+      var response = await fetch(cfg.url + '/rest/v1/customer_leads', {
+        method: 'POST',
+        headers: { apikey:cfg.publishableKey, Authorization:'Bearer ' + cfg.publishableKey, 'Content-Type':'application/json', Prefer:'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error('lead_submit_failed');
+      set({ contactDone:true, contactErr:false, contactSubmitting:false });
+    } catch (error) {
+      set({ contactErr:true, contactErrorMessage:'ส่งข้อมูลไม่สำเร็จ กรุณาลองอีกครั้งหรือโทร 097-428-7891', contactSubmitting:false });
+    }
+  }
 
   // lightbox / video
   function openLightbox(i) { set({ lightbox: i }); }
@@ -583,9 +623,12 @@
             '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px"><span style="font-size:41.6px;font-weight:700;color:#1F4A34;letter-spacing:-.5px">฿' + fmt(a.price) + '</span></div>' +
             '<div style="font-size:17.6px;color:#6B7065;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid #EEEBE3">' + fmt(perRai(a)) + ' บาท/ไร่ · ' + esc(a.sizeText) + '</div>' +
             '<div style="display:flex;flex-direction:column;gap:10px">' +
+              '<button ' + click(function () { openContact('interest'); }) + ' class="lead-callback-btn">ให้คุณทรายติดต่อกลับ</button>' +
+              '<div class="lead-quick-actions"><button ' + click(function () { openContact('appt'); }) + '>นัดดูแปลง</button><button ' + click(function () { openContact('docs'); }) + '>ขอเอกสาร</button></div>' +
               '<a href="tel:0974287891" class="btn-dark" style="width:100%;box-sizing:border-box;background:#1F4A34;color:#fff;border:none;border-radius:12px;padding:15px;font-size:20.2px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;text-decoration:none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"></path></svg>โทรหาผู้ขาย · 097-428-7891</a>' +
               '<a href="https://www.facebook.com/saithongptn" target="_blank" rel="noopener" class="btn-fb" style="width:100%;box-sizing:border-box;background:#1877F2;color:#fff;border:none;border-radius:12px;padding:14px;font-size:18.9px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.2c-1.2 0-1.6.8-1.6 1.5V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"></path></svg>แชทผ่านเฟซบุ๊ก</a>' +
               '<button ' + click(function () { toggleFav(a.id); }) + ' class="btn-fav" style="width:100%;background:' + favBg + ';border:1px solid ' + favBorder + ';border-radius:12px;padding:14px;font-size:18.9px;font-weight:600;color:' + favColor + ';cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px"><svg width="17" height="17" viewBox="0 0 24 24" fill="' + favFill + '" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 1 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"></path></svg>' + favLabel + '</button>' +
+              '<button ' + click(function () { openContact('report'); }) + ' class="lead-report-link">แจ้งปัญหาเกี่ยวกับประกาศนี้</button>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -719,6 +762,7 @@
         '<h3>ปรึกษาซื้อ–ขายที่ดินฟรี</h3>' +
         '<p>สอบถามข้อมูลแปลง นัดชมที่ดิน หรือฝากขายกับคุณทรายได้โดยตรง</p>' +
         '<div class="advisor-actions">' +
+          '<button ' + click(function () { openContact('interest'); }) + ' class="advisor-request">ให้คุณทรายติดต่อกลับ</button>' +
           '<a href="tel:0974287891" class="advisor-call">โทร 097-428-7891</a>' +
           '<a href="https://m.me/saithongptn" target="_blank" rel="noopener" class="advisor-facebook">แชทผ่าน Facebook</a>' +
         '</div>' +
@@ -865,6 +909,7 @@
     var ct = state.contactType; if (!ct) return '';
     var a = activeListing();
     var cfg = {
+      interest:{ title:'ให้คุณทรายติดต่อกลับ', subtitle:'ฝากข้อมูลไว้ คุณทรายจะติดต่อกลับเพื่อให้รายละเอียดแปลงนี้โดยตรง', cta:'ส่งข้อมูลให้ติดต่อกลับ', notePlaceholder:'เช่น สนใจแบ่งซื้อ ต้องการสอบถามราคา หรือช่วงเวลาที่สะดวกรับสาย', isAppt:false, isDocs:false, isReport:false, doneTitle:'รับข้อมูลเรียบร้อยแล้ว', doneMsg:'คุณทรายได้รับข้อมูลแล้วและจะติดต่อกลับโดยเร็วที่สุด' },
       appt:{ title:'นัดเข้าดูที่ดิน', subtitle:'กรอกข้อมูลเพื่อนัดหมายเข้าชมแปลงที่ดินกับผู้ขาย', cta:'ส่งคำขอนัดดู', notePlaceholder:'เช่น สะดวกช่วงบ่าย หรือขอให้พาชมแนวเขต', isAppt:true, isDocs:false, isReport:false, doneTitle:'ส่งคำขอนัดดูแล้ว', doneMsg:'ทีมงานทรายทองพัฒนาจะติดต่อกลับเพื่อยืนยันวันและเวลานัดหมายโดยเร็ว' },
       docs:{ title:'ขอเอกสารเพิ่มเติม', subtitle:'เลือกเอกสารที่ต้องการ แล้วกรอกข้อมูลติดต่อกลับ', cta:'ส่งคำขอเอกสาร', notePlaceholder:'ระบุเอกสารอื่น ๆ ที่ต้องการเพิ่มเติม', isAppt:false, isDocs:true, isReport:false, doneTitle:'ส่งคำขอเอกสารแล้ว', doneMsg:'ผู้ขายจะจัดส่งสำเนาเอกสารที่คุณเลือกให้ทางช่องทางที่ติดต่อไว้' },
       report:{ title:'รายงานประกาศนี้', subtitle:'แจ้งปัญหาที่พบเพื่อให้ทีมงานตรวจสอบ', cta:'ส่งรายงาน', notePlaceholder:'อธิบายรายละเอียดเพิ่มเติม (ถ้ามี)', isAppt:false, isDocs:false, isReport:true, doneTitle:'รับเรื่องแล้ว ขอบคุณครับ', doneMsg:'ทีมงานจะตรวจสอบประกาศนี้และดำเนินการตามความเหมาะสมโดยเร็วที่สุด' }
@@ -885,17 +930,20 @@
         return '<button ' + click((function (val) { return function () { toggleDoc(val); }; })(dv)) + ' style="border:1px solid ' + (on ? '#1F4A34' : '#E0DBD0') + ';background:' + (on ? '#1F4A34' : '#fff') + ';color:' + (on ? '#fff' : '#4A5047') + ';border-radius:20px;padding:8px 14px;font-size:16.3px;font-weight:500;cursor:pointer">' + esc(dv) + '</button>';
       }).join('') + '</div>' : '';
 
-      var apptDate = c.isAppt ? '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">วันที่สะดวกนัดดู</label><input type="date" data-fk="cDate" value="' + attr(state.cDate) + '" ' + oninput(function (e) { set({ cDate: e.target.value }); }) + ' style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;color:#3B4038"></div>' : '';
+      var apptDate = c.isAppt ? '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">วันที่สะดวกนัดดู</label><input type="date" min="' + new Date().toISOString().slice(0,10) + '" data-fk="cDate" value="' + attr(state.cDate) + '" ' + oninput(function (e) { set({ cDate: e.target.value }); }) + ' style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;color:#3B4038"></div>' : '';
 
       body = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28.6px;font-weight:700;margin:0;color:#1B2019">' + esc(c.title) + '</h2><button ' + click(closeContact) + ' style="width:38px;height:38px;border-radius:10px;background:#F1F0EA;border:none;cursor:pointer;font-size:26px;color:#4A5047">×</button></div>' +
         '<p style="font-size:17.6px;color:#8A8F84;margin:0 0 20px;line-height:1.5">' + esc(c.subtitle) + '</p>' +
         '<div style="display:flex;gap:12px;align-items:center;background:#F7F5F0;border-radius:12px;padding:12px 14px;margin-bottom:20px"><div style="width:40px;height:40px;border-radius:9px;overflow:hidden;background:#E4EAE1;flex:none"><img src="' + attr(galleryImgs(a)[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div><div style="min-width:0"><div style="font-size:17.6px;font-weight:600;color:#1B2019;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.title) + '</div><div style="font-size:16.3px;color:#1F4A34;font-weight:600">฿' + fmt(a.price) + ' · ' + esc(a.sizeText) + '</div></div></div>' +
         reasons + docs +
-        '<div style="display:flex;flex-direction:column;gap:12px"><div class="contact-primary-fields" style="display:flex;gap:12px"><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ชื่อของคุณ *</label><input data-fk="cName" value="' + attr(state.cName) + '" ' + oninput(function (e) { set({ cName: e.target.value, contactErr: false }); }) + ' placeholder="ชื่อ-นามสกุล" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">เบอร์โทร *</label><input data-fk="cPhone" inputmode="tel" value="' + attr(state.cPhone) + '" ' + oninput(function (e) { set({ cPhone: e.target.value, contactErr: false }); }) + ' placeholder="08x-xxx-xxxx" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div></div>' +
+        '<div style="display:flex;flex-direction:column;gap:12px"><div class="contact-primary-fields" style="display:flex;gap:12px"><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ชื่อของคุณ *</label><input data-fk="cName" maxlength="120" autocomplete="name" value="' + attr(state.cName) + '" ' + oninput(function (e) { set({ cName: e.target.value, contactErr: false, contactErrorMessage:'' }); }) + ' placeholder="ชื่อ-นามสกุล" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">เบอร์โทร *</label><input data-fk="cPhone" inputmode="tel" maxlength="40" autocomplete="tel" value="' + attr(state.cPhone) + '" ' + oninput(function (e) { set({ cPhone: e.target.value, contactErr: false, contactErrorMessage:'' }); }) + ' placeholder="08x-xxx-xxxx" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div></div>' +
+        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">LINE ID <span style="font-weight:400;color:#8A8F84">(ถ้ามี)</span></label><input data-fk="cLine" maxlength="100" autocomplete="off" value="' + attr(state.cLine) + '" ' + oninput(function (e) { set({ cLine: e.target.value }); }) + ' placeholder="เช่น saithong123" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div>' +
         apptDate +
-        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ข้อความถึงผู้ขาย</label><textarea data-fk="cNote" ' + oninput(function (e) { set({ cNote: e.target.value }); }) + ' rows="2" placeholder="' + attr(c.notePlaceholder) + '" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;resize:vertical;font-family:inherit">' + esc(state.cNote) + '</textarea></div></div>' +
-        (state.contactErr ? '<div style="color:#C0453B;font-size:16.9px;font-weight:500;margin-top:12px">กรุณากรอกชื่อและเบอร์โทรติดต่อ</div>' : '') +
-        '<button ' + click(submitContact) + ' class="btn-dark" style="width:100%;margin-top:18px;background:#1F4A34;color:#fff;border:none;border-radius:12px;padding:14px;font-size:19.5px;font-weight:700;cursor:pointer">' + esc(c.cta) + '</button>';
+        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ข้อความถึงผู้ขาย</label><textarea data-fk="cNote" maxlength="2000" ' + oninput(function (e) { set({ cNote: e.target.value }); }) + ' rows="3" placeholder="' + attr(c.notePlaceholder) + '" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;resize:vertical;font-family:inherit">' + esc(state.cNote) + '</textarea></div>' +
+        '<div class="contact-honeypot" aria-hidden="true"><label>เว็บไซต์<input tabindex="-1" autocomplete="off" data-fk="cWebsite" value="' + attr(state.cWebsite) + '" ' + oninput(function (e) { set({ cWebsite:e.target.value }); }) + '></label></div>' +
+        '<label class="contact-consent"><input type="checkbox" ' + (state.contactConsent ? 'checked ' : '') + onchange(function (e) { set({ contactConsent:e.target.checked, contactErr:false, contactErrorMessage:'' }); }) + '><span>ยินยอมให้ทรายทองพัฒนาใช้ข้อมูลนี้เพื่อติดต่อกลับเกี่ยวกับที่ดินที่สนใจ</span></label></div>' +
+        (state.contactErr ? '<div class="contact-error" role="alert">' + esc(state.contactErrorMessage || 'กรุณาตรวจสอบข้อมูลอีกครั้ง') + '</div>' : '') +
+        '<button ' + click(submitContact) + ' class="btn-dark contact-submit" ' + (state.contactSubmitting ? 'disabled' : '') + '>' + (state.contactSubmitting ? 'กำลังส่งข้อมูล…' : esc(c.cta)) + '</button>';
     }
 
     return '<div ' + click(closeContact) + ' style="position:fixed;inset:0;z-index:78;background:rgba(20,31,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto"><div ' + click(function (e) { e.stopPropagation(); }) + ' style="background:#fff;border-radius:20px;max-width:480px;width:100%;padding:28px 30px 30px">' + body + '</div></div>';

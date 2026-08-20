@@ -139,7 +139,9 @@ a { text-decoration: none; }
 .advisor-panel h3 { margin: 15px 0 5px; color: #1b2019; font-size: 19px; }
 .advisor-panel p { margin: 0 0 14px; color: #6b7065; font-size: 13px; line-height: 1.55; }
 .advisor-actions { display: grid; gap: 8px; }
-.advisor-actions a { border-radius: 10px; padding: 11px 14px; text-align: center; font-size: 13.5px; font-weight: 700; }
+.advisor-actions a,
+.advisor-actions button { border-radius: 10px; padding: 11px 14px; text-align: center; font-family: inherit; font-size: 13.5px; font-weight: 700; border: 0; cursor: pointer; }
+.advisor-request { background: #e3a81e; color: #1b2019; }
 .advisor-call { background: #1f4a34; color: #fff; }
 .advisor-facebook { background: #1877f2; color: #fff; }
 
@@ -177,6 +179,82 @@ a { text-decoration: none; }
 .advisor-widget button:focus-visible, .advisor-widget a:focus-visible { outline: 3px solid rgba(227,168,30,.45); outline-offset: 2px; }
 
 @keyframes advisor-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.lead-callback-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 15px;
+  background: #e3a81e;
+  color: #1b2019;
+  font: 700 20.2px/1.3 'IBM Plex Sans Thai', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 5px 14px rgba(227, 168, 30, .18);
+}
+.lead-callback-btn:hover,
+.advisor-request:hover { background: #d49a12; }
+.lead-quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lead-quick-actions button {
+  min-height: 46px;
+  border: 1px solid #d9d4c8;
+  border-radius: 11px;
+  background: #fff;
+  color: #1f4a34;
+  font: 600 17.6px/1.3 'IBM Plex Sans Thai', sans-serif;
+  cursor: pointer;
+}
+.lead-quick-actions button:hover { background: #f5f3ed; border-color: #bdb6a8; }
+.lead-report-link {
+  border: 0;
+  background: transparent;
+  color: #7b8178;
+  font: 500 15.6px/1.4 'IBM Plex Sans Thai', sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 5px;
+}
+.contact-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid #e2ddd2;
+  border-radius: 11px;
+  background: #faf9f6;
+  color: #52584f;
+  font-size: 15.6px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.contact-consent input { width: 19px; height: 19px; flex: none; margin-top: 2px; accent-color: #1f4a34; }
+.contact-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff0ee;
+  color: #a93f35;
+  font-size: 16.3px;
+  font-weight: 600;
+}
+.contact-submit {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px;
+  background: #1f4a34;
+  color: #fff;
+  font: 700 19.5px/1.35 'IBM Plex Sans Thai', sans-serif;
+  cursor: pointer;
+}
+.contact-submit:disabled { opacity: .62; cursor: wait; }
+.contact-honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; overflow: hidden !important; }
+.lead-callback-btn:focus-visible,
+.lead-quick-actions button:focus-visible,
+.lead-report-link:focus-visible,
+.advisor-request:focus-visible,
+.contact-submit:focus-visible { outline: 3px solid rgba(227,168,30,.45); outline-offset: 2px; }
 
 /* clamp helper */
 .clamp2 {

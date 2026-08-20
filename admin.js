@@ -5,6 +5,9 @@
   var client = window.supabase.createClient(cfg.url, cfg.publishableKey);
   var session = null;
   var listings = [];
+  var leads = [];
+  var activeSection = 'listings';
+  var leadStatusFilter = 'all';
   var editingImages = [];
   var editingPurposes = [];
   var PROVINCE_DISTRICTS = {
@@ -20,6 +23,9 @@
     return m ? (Number(m[1]) + ', ' + Number(m[2])) : '';
   }
   function statusText(v) { return {draft:'ฉบับร่าง',available:'พร้อมขาย',reserved:'จองแล้ว',sold:'ขายแล้ว'}[v] || v; }
+  function leadStatusText(v) { return {new:'ลูกค้าใหม่',contacted:'ติดต่อแล้ว',appointment:'นัดหมายแล้ว',closed:'ปิดการติดตาม'}[v] || v; }
+  function leadTypeText(v) { return {interest:'สนใจที่ดิน',appt:'ขอนัดดูแปลง',docs:'ขอเอกสาร',report:'แจ้งปัญหาประกาศ'}[v] || v; }
+  function leadDate(v) { try{return new Date(v).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});}catch(e){return String(v||'');} }
   function nextSortOrder() {
     return listings.reduce(function(max, item){return Math.max(max, Number(item.sort_order) || 0);}, 0) + 1;
   }
@@ -58,7 +64,22 @@
       await client.auth.signOut(); session = null;
       loginView('บัญชีนี้ยังไม่ได้รับสิทธิ์ผู้ดูแล'); return;
     }
-    await loadListings();
+    await loadAdminData();
+  }
+
+  async function loadAdminData() {
+    root.innerHTML = '<p class="loading">กำลังโหลดข้อมูลระบบจัดการ…</p>';
+    var results = await Promise.all([
+      client.from('land_listings').select('*').order('sort_order',{ascending:false}).order('created_at',{ascending:false}),
+      client.from('customer_leads').select('*').order('created_at',{ascending:false})
+    ]);
+    if (results[0].error || results[1].error) {
+      root.innerHTML = '<div class="error">โหลดข้อมูลไม่สำเร็จ: ' + esc((results[0].error||results[1].error).message) + '</div>';
+      return;
+    }
+    listings = results[0].data || [];
+    leads = results[1].data || [];
+    panelView();
   }
 
   async function loadListings() {
@@ -67,19 +88,89 @@
     listings = result.data || []; panelView();
   }
 
+  async function loadLeads() {
+    var result = await client.from('customer_leads').select('*').order('created_at',{ascending:false});
+    if (result.error) { window.alert('โหลดข้อมูลลูกค้าไม่สำเร็จ: ' + result.error.message); return; }
+    leads = result.data || []; panelView();
+  }
+
+  function adminTabs() {
+    var newCount = leads.filter(function(x){return x.status==='new';}).length;
+    return '<nav class="admin-tabs" aria-label="เมนูระบบจัดการ"><button data-section="listings" class="'+(activeSection==='listings'?'active':'')+'">ประกาศที่ดิน <span>'+listings.length+'</span></button><button data-section="leads" class="'+(activeSection==='leads'?'active':'')+'">ลูกค้าสนใจ <span class="'+(newCount?'has-new':'')+'">'+newCount+' ใหม่</span></button></nav>';
+  }
+
+  function bindAdminTabs() {
+    root.querySelectorAll('[data-section]').forEach(function(button){button.onclick=function(){activeSection=button.dataset.section;panelView();};});
+  }
+
   function panelView() {
-    var openModal = document.getElementById('editor-modal'); if (openModal) openModal.remove(); document.body.classList.remove('modal-open');
+    var openModal = document.querySelector('#editor-modal,#lead-modal'); if (openModal) openModal.remove(); document.body.classList.remove('modal-open');
+    if (activeSection === 'leads') { leadsView(); return; }
     var rows = listings.map(function (x, index) {
       var image = (x.images || [])[0] || 'logo.png';
       var rankControl = index === 0 ? '<span class="top-rank">★ อยู่บนสุด</span>' : '<button class="btn btn-feature" data-feature="' + x.id + '">★ ดันขึ้นบน</button>';
       return '<article class="listing-row '+(index===0?'is-featured':'')+'"><img src="' + esc(image) + '" alt=""><div><h3>' + esc(x.title) + '</h3><p>' + esc(x.district) + ' · ' + esc(x.province || 'ปทุมธานี') + ' · ฿' + Number(x.price).toLocaleString('en-US') + ' · ' + statusText(x.status) + (x.published ? ' · เผยแพร่แล้ว' : ' · ยังไม่เผยแพร่') + (hasLocalDraft(x.id)?' · <span class="draft-label">มีฉบับร่าง</span>':'') + '</p></div><div class="row-actions">'+rankControl+'<button class="btn btn-light" data-edit="' + x.id + '">แก้ไข</button><button class="btn btn-danger" data-delete="' + x.id + '">ลบ</button></div></article>';
     }).join('');
-    root.innerHTML = '<div class="toolbar"><div><h1 class="panel-title">จัดการประกาศที่ดิน</h1><p class="muted" style="margin:0">ข้อมูลที่บันทึกจะแสดงกับลูกค้าทุกเครื่อง</p></div><div class="toolbar-actions"><button id="logout" class="btn btn-light">ออกจากระบบ</button><button id="add" class="btn btn-gold">'+(hasLocalDraft(null)?'เขียนฉบับร่างต่อ':'+ เพิ่มที่ดิน')+'</button></div></div><div class="list">' + (rows || '<div class="card empty">ยังไม่มีประกาศ</div>') + '</div>';
+    root.innerHTML = adminTabs() + '<div class="toolbar"><div><h1 class="panel-title">จัดการประกาศที่ดิน</h1><p class="muted" style="margin:0">ข้อมูลที่บันทึกจะแสดงกับลูกค้าทุกเครื่อง</p></div><div class="toolbar-actions"><button id="logout" class="btn btn-light">ออกจากระบบ</button><button id="add" class="btn btn-gold">'+(hasLocalDraft(null)?'เขียนฉบับร่างต่อ':'+ เพิ่มที่ดิน')+'</button></div></div><div class="list">' + (rows || '<div class="card empty">ยังไม่มีประกาศ</div>') + '</div>';
+    bindAdminTabs();
     document.getElementById('logout').onclick = async function(){await client.auth.signOut();session=null;loginView();};
     document.getElementById('add').onclick = function(){formView(null);};
     root.querySelectorAll('[data-feature]').forEach(function(b){b.onclick=function(){featureListing(b.dataset.feature,b);};});
     root.querySelectorAll('[data-edit]').forEach(function(b){b.onclick=function(){formView(listings.find(function(x){return x.id===b.dataset.edit;}));};});
     root.querySelectorAll('[data-delete]').forEach(function(b){b.onclick=function(){removeListing(b.dataset.delete);};});
+  }
+
+  function leadsView() {
+    var counts = {all:leads.length,new:0,contacted:0,appointment:0,closed:0};
+    leads.forEach(function(item){if(Object.prototype.hasOwnProperty.call(counts,item.status))counts[item.status]++;});
+    var statuses = ['all','new','contacted','appointment','closed'];
+    var filters = statuses.map(function(status){
+      var label = status==='all'?'ทั้งหมด':leadStatusText(status);
+      return '<button data-lead-filter="'+status+'" class="'+(leadStatusFilter===status?'active':'')+'"><span>'+esc(label)+'</span><strong>'+counts[status]+'</strong></button>';
+    }).join('');
+    var filtered = leadStatusFilter==='all' ? leads : leads.filter(function(item){return item.status===leadStatusFilter;});
+    var rows = filtered.map(function(item){
+      var digits = String(item.phone||'').replace(/\D/g,'');
+      var appt = item.appointment_date ? '<span class="lead-appointment">นัด '+esc(new Date(item.appointment_date+'T00:00:00').toLocaleDateString('th-TH',{dateStyle:'medium'}))+'</span>' : '';
+      var line = item.line_id ? '<span>LINE: '+esc(item.line_id)+'</span>' : '';
+      return '<article class="lead-row '+(item.status==='new'?'is-new':'')+'"><div class="lead-row-main"><div class="lead-name-line"><h3>'+esc(item.customer_name)+'</h3><span class="lead-type">'+esc(leadTypeText(item.request_type))+'</span>'+appt+'</div><div class="lead-contact-line"><a href="tel:'+esc(digits)+'">'+esc(item.phone)+'</a>'+line+'<span>'+esc(leadDate(item.created_at))+'</span></div><p>'+esc(item.listing_title||'ไม่ระบุแปลง')+'</p></div><div class="lead-row-actions"><select data-lead-status="'+item.id+'" aria-label="สถานะลูกค้า">'+['new','contacted','appointment','closed'].map(function(status){return '<option value="'+status+'" '+(status===item.status?'selected':'')+'>'+esc(leadStatusText(status))+'</option>';}).join('')+'</select><button class="btn btn-light" data-view-lead="'+item.id+'">ดูรายละเอียด</button></div></article>';
+    }).join('');
+    root.innerHTML = adminTabs() + '<div class="toolbar lead-toolbar"><div><h1 class="panel-title">ลูกค้าที่สนใจที่ดิน</h1><p class="muted" style="margin:0">ติดตามการติดต่อ นัดหมาย และบันทึกผลการพูดคุย</p></div><button id="logout" class="btn btn-light">ออกจากระบบ</button></div><section class="lead-summary" aria-label="สรุปลูกค้า">'+filters+'</section><div class="lead-list">'+(rows||'<div class="card empty">ยังไม่มีข้อมูลลูกค้าในสถานะนี้</div>')+'</div>';
+    bindAdminTabs();
+    document.getElementById('logout').onclick = async function(){await client.auth.signOut();session=null;loginView();};
+    root.querySelectorAll('[data-lead-filter]').forEach(function(button){button.onclick=function(){leadStatusFilter=button.dataset.leadFilter;leadsView();};});
+    root.querySelectorAll('[data-lead-status]').forEach(function(select){select.onchange=function(){updateLeadStatus(select.dataset.leadStatus,select.value,select);};});
+    root.querySelectorAll('[data-view-lead]').forEach(function(button){button.onclick=function(){leadDetailView(leads.find(function(item){return item.id===button.dataset.viewLead;}));};});
+  }
+
+  async function updateLeadStatus(id, status, control) {
+    if(control)control.disabled=true;
+    var result=await client.from('customer_leads').update({status:status}).eq('id',id);
+    if(result.error){if(control)control.disabled=false;window.alert('อัปเดตสถานะไม่สำเร็จ: '+result.error.message);return;}
+    await loadLeads();
+  }
+
+  function leadDetailView(item) {
+    if(!item)return;
+    var modal=document.createElement('div');modal.id='lead-modal';modal.className='modal-overlay';
+    var documents=(item.requested_documents||[]).map(function(value){return '<span>'+esc(value)+'</span>';}).join('');
+    var digits=String(item.phone||'').replace(/\D/g,'');
+    modal.innerHTML='<section class="lead-detail-modal"><div class="modal-head"><div><span class="lead-modal-kicker">'+esc(leadTypeText(item.request_type))+'</span><h1>'+esc(item.customer_name)+'</h1></div><button type="button" class="modal-close" aria-label="ปิด">×</button></div><div class="lead-detail-grid"><div><small>เบอร์โทร</small><a href="tel:'+esc(digits)+'">'+esc(item.phone)+'</a></div><div><small>LINE ID</small><strong>'+esc(item.line_id||'ไม่ได้ระบุ')+'</strong></div><div class="span-2"><small>ที่ดินที่สนใจ</small><strong>'+esc(item.listing_title||'ไม่ได้ระบุ')+'</strong></div><div><small>วันที่ส่งข้อมูล</small><strong>'+esc(leadDate(item.created_at))+'</strong></div><div><small>วันที่ขอนัดดู</small><strong>'+(item.appointment_date?esc(new Date(item.appointment_date+'T00:00:00').toLocaleDateString('th-TH',{dateStyle:'long'})):'ไม่ได้ระบุ')+'</strong></div></div>'+(item.report_reason?'<div class="lead-message"><small>เหตุผลที่แจ้ง</small><p>'+esc(item.report_reason)+'</p></div>':'')+(documents?'<div class="lead-documents"><small>เอกสารที่ขอ</small><div>'+documents+'</div></div>':'')+'<div class="lead-message"><small>ข้อความจากลูกค้า</small><p>'+esc(item.message||'ไม่มีข้อความเพิ่มเติม')+'</p></div><div class="field"><label>สถานะการติดตาม</label><select id="lead-detail-status">'+['new','contacted','appointment','closed'].map(function(status){return '<option value="'+status+'" '+(status===item.status?'selected':'')+'>'+esc(leadStatusText(status))+'</option>';}).join('')+'</select></div><div class="field" style="margin-top:14px"><label>บันทึกของทีมงาน</label><textarea id="lead-admin-note" maxlength="4000" rows="4" placeholder="เช่น โทรแล้ว ลูกค้าสนใจนัดดูวันเสาร์">'+esc(item.admin_note||'')+'</textarea></div><div id="lead-modal-message"></div><div class="lead-modal-actions"><button type="button" id="delete-lead" class="btn btn-danger">ลบข้อมูล</button><span></span><a class="btn btn-light" href="tel:'+esc(digits)+'">โทรหาลูกค้า</a><button type="button" id="save-lead" class="btn btn-primary">บันทึกการติดตาม</button></div></section>';
+    document.body.appendChild(modal);document.body.classList.add('modal-open');
+    function close(){modal.remove();document.body.classList.remove('modal-open');}
+    modal.querySelector('.modal-close').onclick=close;
+    modal.onclick=function(event){if(event.target===modal)close();};
+    modal.querySelector('#save-lead').onclick=async function(){
+      var button=this,message=modal.querySelector('#lead-modal-message');button.disabled=true;message.innerHTML='<div class="success">กำลังบันทึก…</div>';
+      var result=await client.from('customer_leads').update({status:modal.querySelector('#lead-detail-status').value,admin_note:modal.querySelector('#lead-admin-note').value.trim()||null}).eq('id',item.id);
+      if(result.error){button.disabled=false;message.innerHTML='<div class="error">บันทึกไม่สำเร็จ: '+esc(result.error.message)+'</div>';return;}
+      close();await loadLeads();
+    };
+    modal.querySelector('#delete-lead').onclick=async function(){
+      if(!window.confirm('ลบข้อมูลลูกค้ารายนี้ออกจากระบบหรือไม่?'))return;
+      var result=await client.from('customer_leads').delete().eq('id',item.id);
+      if(result.error){window.alert('ลบไม่สำเร็จ: '+result.error.message);return;}close();await loadLeads();
+    };
   }
 
   function formView(x) {
