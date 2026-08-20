@@ -247,6 +247,21 @@
   font-weight: 700;
 }
 .lead-appointment { background: #fff3d2; color: #805d00; }
+.lead-email-state {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 9px;
+  border-radius: 18px;
+  background: #f0efeb;
+  color: #626860;
+  font-size: 14px;
+  font-weight: 700;
+}
+.lead-email-state.email-sent { background: #e4f3e8; color: #17613b; }
+.lead-email-state.email-sending { background: #e8f1fa; color: #25618a; }
+.lead-email-state.email-failed { background: #fae9e7; color: #a73d32; }
+.lead-email-state.email-pending { background: #fff3d2; color: #805d00; }
 .lead-contact-line { margin-top: 5px; color: #747b72; font-size: 15px; }
 .lead-contact-line a { color: #1f4a34; font-size: 18px; font-weight: 700; }
 .lead-row-main p { margin: 7px 0 0; color: #4f574f; font-size: 16px; }
@@ -291,6 +306,23 @@
 .lead-documents small { display: block; margin-bottom: 3px; color: #7b8179; font-size: 14px; }
 .lead-detail-grid strong { color: #29342d; font-size: 17px; }
 .lead-detail-grid a { color: #1f4a34; font-size: 20px; font-weight: 700; }
+.lead-email-detail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px 10px;
+}
+.lead-email-detail small { width: 100%; }
+.lead-email-detail > span:not(.lead-email-state) { color: #737a72; font-size: 14px; }
+.lead-email-detail .btn { margin-left: auto; }
+.lead-email-error {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #fff0ee;
+  color: #a43e35 !important;
+  overflow-wrap: anywhere;
+}
 .lead-message,
 .lead-documents { margin-bottom: 14px; }
 .lead-message p { margin: 0; color: #3f4841; white-space: pre-wrap; }

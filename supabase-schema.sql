@@ -60,9 +60,26 @@ create table if not exists public.customer_leads (
   status text not null default 'new'
     check (status in ('new','contacted','appointment','closed')),
   admin_note text check (admin_note is null or char_length(admin_note) <= 4000),
+  email_notification_status text not null default 'pending'
+    check (email_notification_status in ('pending','sending','sent','failed')),
+  email_notification_attempts integer not null default 0
+    check (email_notification_attempts >= 0),
+  email_notification_sent_at timestamptz,
+  email_notification_error text,
+  email_notification_provider_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Backfill notification columns when upgrading an existing installation.
+alter table public.customer_leads add column if not exists email_notification_status text
+  not null default 'pending'
+  check (email_notification_status in ('pending','sending','sent','failed'));
+alter table public.customer_leads add column if not exists email_notification_attempts integer
+  not null default 0 check (email_notification_attempts >= 0);
+alter table public.customer_leads add column if not exists email_notification_sent_at timestamptz;
+alter table public.customer_leads add column if not exists email_notification_error text;
+alter table public.customer_leads add column if not exists email_notification_provider_id text;
 
 create index if not exists customer_leads_created_at_idx
 on public.customer_leads (created_at desc);
@@ -72,6 +89,9 @@ on public.customer_leads (status, created_at desc);
 
 create index if not exists customer_leads_listing_id_idx
 on public.customer_leads (listing_id);
+
+create index if not exists customer_leads_email_status_idx
+on public.customer_leads (email_notification_status, created_at desc);
 
 -- Kept for backwards compatibility: this column now stores the optional Google Maps URL.
 alter table public.land_listings add column if not exists video_url text;
