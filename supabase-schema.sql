@@ -2,6 +2,8 @@
 -- Safe to run repeatedly: it only creates names owned by this website.
 
 create extension if not exists pgcrypto;
+create extension if not exists supabase_vault;
+create extension if not exists pg_net with schema extensions;
 
 create schema if not exists private;
 revoke all on schema private from public;
@@ -110,6 +112,70 @@ $$;
 
 revoke all on function private.is_site_admin() from public;
 grant execute on function private.is_site_admin() to anon, authenticated, service_role;
+
+-- Called only by the Edge Function's service key. The actual webhook secret
+-- stays encrypted in Supabase Vault and is never exposed to browser roles.
+create or replace function public.verify_lead_webhook_secret(candidate text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = vault, pg_catalog
+as $$
+  select exists (
+    select 1
+    from vault.decrypted_secrets
+    where name = 'lead_webhook_secret'
+      and decrypted_secret = candidate
+  );
+$$;
+
+revoke all on function public.verify_lead_webhook_secret(text) from public, anon, authenticated;
+grant execute on function public.verify_lead_webhook_secret(text) to service_role;
+
+create or replace function private.notify_new_lead_webhook()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, vault, net, pg_catalog
+as $$
+declare
+  webhook_secret text;
+  request_id bigint;
+begin
+  select decrypted_secret into webhook_secret
+  from vault.decrypted_secrets
+  where name = 'lead_webhook_secret'
+  limit 1;
+
+  if webhook_secret is not null then
+    select net.http_post(
+      url := 'https://xmmopusgxskaegypjinm.supabase.co/functions/v1/notify-new-lead',
+      body := jsonb_build_object(
+        'type', 'INSERT',
+        'table', 'customer_leads',
+        'schema', 'public',
+        'record', to_jsonb(new),
+        'old_record', null
+      ),
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-webhook-secret', webhook_secret
+      ),
+      timeout_milliseconds := 10000
+    ) into request_id;
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.notify_new_lead_webhook() from public, anon, authenticated;
+
+drop trigger if exists customer_leads_notify_email on public.customer_leads;
+create trigger customer_leads_notify_email
+after insert on public.customer_leads
+for each row execute function private.notify_new_lead_webhook();
 
 create or replace function public.touch_updated_at()
 returns trigger

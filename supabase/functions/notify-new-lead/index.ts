@@ -92,19 +92,11 @@ function thaiDate(value: string | null, withTime = false) {
   }
 }
 
-async function safeSecretMatch(actual: string | null, expected: string) {
-  if (!actual || !expected) return false;
-  const encoder = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(actual)),
-    crypto.subtle.digest("SHA-256", encoder.encode(expected)),
-  ]);
-  const av = new Uint8Array(a), bv = new Uint8Array(b);
-  let mismatch = av.length ^ bv.length;
-  for (let i = 0; i < Math.max(av.length, bv.length); i += 1) {
-    mismatch |= (av[i] || 0) ^ (bv[i] || 0);
-  }
-  return mismatch === 0;
+async function isWebhookRequest(req: Request, service: ReturnType<typeof createClient>) {
+  const candidate = req.headers.get("x-webhook-secret");
+  if (!candidate) return false;
+  const { data, error } = await service.rpc("verify_lead_webhook_secret", { candidate });
+  return !error && data === true;
 }
 
 async function isAdminRequest(req: Request, supabaseUrl: string) {
@@ -185,12 +177,14 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const secretKey = defaultKey("SUPABASE_SECRET_KEYS") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const webhookSecret = Deno.env.get("LEAD_WEBHOOK_SECRET") || "";
   const resendKey = Deno.env.get("RESEND_API_KEY") || "";
   const recipient = Deno.env.get("LEAD_NOTIFICATION_TO") || "saithong.ptn@gmail.com";
   const sender = Deno.env.get("LEAD_NOTIFICATION_FROM") || "ทรายทองพัฒนา <onboarding@resend.dev>";
 
   if (!supabaseUrl || !secretKey) return json({ error: "server_database_config_missing" }, 503);
+  const service = createClient(supabaseUrl, secretKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   let body: Record<string, unknown>;
   try {
@@ -199,7 +193,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "invalid_json" }, 400);
   }
 
-  const webhookAuthorized = await safeSecretMatch(req.headers.get("x-webhook-secret"), webhookSecret);
+  const webhookAuthorized = await isWebhookRequest(req, service);
   const adminAuthorized = webhookAuthorized ? false : await isAdminRequest(req, supabaseUrl);
   if (!webhookAuthorized && !adminAuthorized) return json({ error: "unauthorized" }, 401);
 
@@ -211,11 +205,7 @@ Deno.serve(async (req: Request) => {
   if (webhookAuthorized && (body.type !== "INSERT" || body.table !== "customer_leads" || body.schema !== "public")) {
     return json({ error: "invalid_webhook_event" }, 400);
   }
-  if (!resendKey || !webhookSecret) return json({ error: "email_config_missing" }, 503);
-
-  const service = createClient(supabaseUrl, secretKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  if (!resendKey) return json({ error: "email_config_missing" }, 503);
   const { data: lead, error: leadError } = await service
     .from("customer_leads")
     .select(LEAD_SELECT)
