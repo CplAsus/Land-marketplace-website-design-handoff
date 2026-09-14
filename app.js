@@ -1,13 +1,11 @@
-/* ทรายทองพัฒนา — ตลาดที่ดินปทุมธานี (สายคลอง)
- * Vanilla re-implementation of the Claude Design prototype.
- * Two pages (หน้าแรก / รายละเอียด) + owner admin mode (password 123456,
- * localStorage-backed CRUD for listings & reviews). Client-only demo — the
- * password lives in the JS source, so this is NOT a real auth boundary.
- */
+/* ทรายทองพัฒนา — public marketplace. Administration lives in admin.html. */
 (function () {
   'use strict';
 
   var app = document.getElementById('app');
+  var core = window.SiteCore;
+  var contactRequest = 0;
+  var modalOpener = null;
 
   /* ------------------------------------------------------------------ *
    * State
@@ -15,11 +13,11 @@
   var state = {
     page: 'home',
     favs: [],
+    onlyFavs: false,
+    dataStatus: 'loading',
     compare: [],
     activeId: 'l1',
     showCompareModal: false,
-    // admin
-    authed: false, pw: '', pwErr: false, editing: null, reviewEditing: null,
     // contact modal
     contactType: null, contactDone: false, contactErr: false, contactErrorMessage: '', contactSubmitting: false,
     cName: '', cPhone: '', cLine: '', cDate: '', cNote: '', cWebsite: '', contactConsent: false, reportReason: '', docSel: [],
@@ -40,26 +38,11 @@
   /* ------------------------------------------------------------------ *
    * Persistence
    * ------------------------------------------------------------------ */
-  function loadListings() {
-    try {
-      var r = localStorage.getItem('ttp_listings_v2');
-      if (r) { var a = JSON.parse(r); if (Array.isArray(a) && a.length) return a; }
-    } catch (e) {}
-    return defaults();
-  }
-  function persist(list) { try { localStorage.setItem('ttp_listings_v2', JSON.stringify(list)); } catch (e) {} }
-  function loadReviews() {
-    try {
-      var r = localStorage.getItem('ttp_reviews_v2');
-      if (r) { var a = JSON.parse(r); if (Array.isArray(a)) return a; }
-    } catch (e) {}
-    return defaultReviews();
-  }
-  function persistReviews(list) { try { localStorage.setItem('ttp_reviews_v2', JSON.stringify(list)); } catch (e) {} }
 
   function remoteListing(row) {
     return {
       id: row.id,
+      status: row.status,
       title: row.title,
       district: row.district,
       province: row.province || 'ปทุมธานี',
@@ -89,21 +72,22 @@
 
   function loadRemoteListings() {
     var cfg = window.SUPABASE_CONFIG;
-    if (!cfg || !cfg.url || !cfg.publishableKey) return;
-    var endpoint = cfg.url + '/rest/v1/land_listings?published=eq.true&select=*&order=sort_order.desc,created_at.desc';
-    fetch(endpoint, {
-      headers: { apikey: cfg.publishableKey, Authorization: 'Bearer ' + cfg.publishableKey }
+    if (!cfg || !cfg.url || !cfg.publishableKey) { set({dataStatus:'offline'}); return; }
+    set({dataStatus:'loading'});
+    var endpoint = cfg.url + '/rest/v1/land_listings?published=eq.true&status=in.(available,reserved,sold)&select=*&order=sort_order.desc,created_at.desc';
+    core.fetchWithTimeout(endpoint, {
+      headers: { apikey: cfg.publishableKey }
     }).then(function (res) {
       if (!res.ok) throw new Error('Unable to load listings');
       return res.json();
     }).then(function (rows) {
-      if (Array.isArray(rows) && rows.length) {
-        var mapped = rows.map(remoteListing);
-        mapped[0].featured = true;
-        set({ listings: mapped, activeId: rows[0].id });
-      }
+      if (!Array.isArray(rows)) throw new Error('Invalid listings response');
+      var mapped = rows.filter(function(row) { return row.published && row.status !== 'draft'; }).map(remoteListing);
+      if (mapped.length) mapped[0].featured = true;
+      set({ listings:mapped, dataStatus:'ready', contactType:state.contactType && mapped.some(function(l) { return l.id === state.activeId; }) ? state.contactType : null, compare:state.compare.filter(function(id) { return mapped.some(function(l) { return l.id === id; }); }) });
     }).catch(function () {
-      // Keep the embedded verified listing available if the backend is temporarily offline.
+      // Embedded content is a fallback, not confirmation of current availability.
+      set({dataStatus:'offline'});
     });
   }
 
@@ -134,7 +118,7 @@
    * Helpers
    * ------------------------------------------------------------------ */
   function fmt(n) { return Number(n).toLocaleString('en-US'); }
-  function perRai(l) { return Math.round(l.price / l.rai); }
+  function perRai(l) { return l.rai > 0 ? Math.round(l.price / l.rai) : 0; }
   function short(n) { return (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'ล'; }
 
   function districtCoord(d) {
@@ -152,8 +136,7 @@
     return 'https://www.openstreetmap.org/export/embed.html?bbox=' + bbox + '&layer=mapnik&marker=' + lat.toFixed(4) + ',' + lng.toFixed(4);
   }
   function googleMapUrl(value) {
-    var url = String(value || '').trim();
-    return /^(?:https?:\/\/)?(?:(?:(?:www|maps)\.)?google\.[^/]+(?:\/maps|\/\?q=)|maps\.app\.goo\.gl|goo\.gl\/maps)(?:\/|$|[^\s]*)/i.test(url) ? url : '';
+    return core.googleMapUrl(value);
   }
   function googleMapLinkFor(listing, lat, lng) {
     return googleMapUrl(listing && listing.mapUrl) || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(lat + ',' + lng));
@@ -209,17 +192,30 @@
     setTimeout(resetPosition, 80);
     setTimeout(resetPosition, 240);
   }
-  function go(p) { set({ page: p }); scrollPageTop(); }
+  function updateRoute(id) {
+    var hash = id ? '#listing/' + encodeURIComponent(id) : '#home';
+    if (window.location.hash !== hash) history.pushState(null, '', hash);
+  }
+  function readRoute() {
+    var match = window.location.hash.match(/^#listing\/(.+)$/);
+    var id = '';
+    try { id = match ? decodeURIComponent(match[1]) : ''; } catch (error) {}
+    set({page:id ? 'detail' : 'home', activeId:id, lightbox:-1, contactType:null, showCompareModal:false});
+    scrollPageTop();
+  }
+  function go(p) { updateRoute(''); set({ page:p, contactType:null, lightbox:-1 }); scrollPageTop(); }
   function scrollFeatured() {
     var el = document.getElementById('featured-listings');
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: 'smooth' });
+    if (el) { el.focus({preventScroll:true}); window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
   }
   function clearFilters() {
-    set({ filterDistrict:'ทุกพื้นที่', filterBudget:'ไม่จำกัด', filterSize:'ทุกขนาด', filterPurpose:'ทุกประเภท' });
+    set({ filterDistrict:'ทุกพื้นที่', filterBudget:'ไม่จำกัด', filterSize:'ทุกขนาด', filterPurpose:'ทุกประเภท', onlyFavs:false });
     setTimeout(scrollFeatured, 0);
   }
   function filteredListings() {
     return state.listings.filter(function (l) {
+      if (state.onlyFavs && !state.favs.includes(l.id)) return false;
+      if (!state.onlyFavs && l.status === 'sold') return false;
       if (state.filterDistrict === 'ปทุมธานี (ทุกอำเภอ)' && l.province !== 'ปทุมธานี') return false;
       if (state.filterDistrict === 'นครนายก (ทุกอำเภอ)' && l.province !== 'นครนายก') return false;
       if (state.filterDistrict !== 'ทุกพื้นที่' && state.filterDistrict !== 'ปทุมธานี (ทุกอำเภอ)' && state.filterDistrict !== 'นครนายก (ทุกอำเภอ)' && l.district !== state.filterDistrict) return false;
@@ -241,78 +237,33 @@
       return true;
     });
   }
-  function openDetail(id) { set({ page: 'detail', activeId: id, lightbox: -1 }); scrollPageTop(); }
-  function toggleFav(id) { var f = state.favs.slice(); var i = f.indexOf(id); i >= 0 ? f.splice(i, 1) : f.push(id); set({ favs: f }); }
+  function openDetail(id) { updateRoute(id); set({ page:'detail', activeId:id, lightbox:-1, showCompareModal:false }); scrollPageTop(); }
+  function toggleFav(id) {
+    var f = state.favs.slice(), i = f.indexOf(id);
+    i >= 0 ? f.splice(i, 1) : f.push(id);
+    try { localStorage.setItem('ttp_favorites_v1', JSON.stringify(f)); } catch (error) {}
+    set({favs:f});
+  }
   function toggleCompare(id) { var c = state.compare.slice(); var i = c.indexOf(id); if (i >= 0) c.splice(i, 1); else if (c.length < 4) c.push(id); set({ compare: c }); }
 
-  // admin
-  function goAdmin() { set({ page: 'admin' }); window.scrollTo(0, 0); }
-  function login() { if (state.pw === '123456') set({ authed: true, pwErr: false, pw: '' }); else set({ pwErr: true }); }
-  function logout() { set({ authed: false, editing: null }); }
-  function blankDraft() { return { id:null, title:'', district:'ธัญบุรี', price:'', rai:'', sizeText:'', deed:'โฉนด (นส.4)', owner:'เจ้าของขายเอง', dim:'', images:[], mapUrl:'', coord:'', tags:'', highlights:'', verified:true, ready:false, road:true, water:false, power:false, purposes:[], _imgUrl:'', _err:false }; }
-  function openAdd() { set({ editing: blankDraft() }); }
-  function openEdit(id) {
-    var l = state.listings.find(function (x) { return x.id === id; }); if (!l) return;
-    set({ editing: { id:l.id, title:l.title, district:l.district, price:String(l.price), rai:String(l.rai), sizeText:l.sizeText || '', deed:l.deed, owner:l.owner, dim:l.dim || '', images:galleryImgs(l), mapUrl:l.mapUrl || '', coord:(l.lat && l.lng) ? (l.lat + ', ' + l.lng) : '', tags:(l.tags || []).join(', '), highlights:(l.highlights || []).join('\n'), verified:!!l.verified, ready:!!l.ready, road:!!l.road, water:!!l.water, power:!!l.power, purposes:(l.purposes || []).slice(), _imgUrl:'', _err:false } });
-  }
-  function closeEdit() { set({ editing: null }); }
-  function setDraft(k, v) { var d = Object.assign({}, state.editing); d[k] = v; d._err = false; set({ editing: d }); }
-  function addDraftImageUrl() { var d = state.editing; var u = (d._imgUrl || '').trim(); if (!u) return; set({ editing: Object.assign({}, d, { images: (d.images || []).concat([u]), _imgUrl: '' }) }); }
-  function addDraftFiles(fileList) {
-    var files = Array.prototype.slice.call(fileList || []); if (!files.length) return;
-    var done = 0, acc = [];
-    files.forEach(function (f) {
-      var rd = new FileReader();
-      rd.onload = function () {
-        acc.push(rd.result); done++;
-        if (done === files.length) set({ editing: Object.assign({}, state.editing, { images: (state.editing.images || []).concat(acc) }) });
-      };
-      rd.readAsDataURL(f);
-    });
-  }
-  function removeDraftImage(i) { var d = state.editing; var arr = (d.images || []).slice(); arr.splice(i, 1); set({ editing: Object.assign({}, d, { images: arr }) }); }
-  function toggleDraftPurpose(p) { var arr = state.editing.purposes.slice(); var i = arr.indexOf(p); i >= 0 ? arr.splice(i, 1) : arr.push(p); setDraft('purposes', arr); }
-  function saveDraft() {
-    var d = state.editing; if (!d) return;
-    if (!d.title.trim() || !d.price || !d.rai) { set({ editing: Object.assign({}, d, { _err: true }) }); return; }
-    var rai = Number(d.rai) || 0, price = Number(d.price) || 0;
-    var lat = null, lng = null;
-    var cm = (d.coord || '').match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
-    if (cm) { lat = Number(cm[1]); lng = Number(cm[2]); } else { var dc = districtCoord(d.district); lat = dc[0]; lng = dc[1]; }
-    var images = (d.images || []).filter(Boolean);
-    var obj = { id:d.id || ('u' + Date.now()), title:d.title.trim(), district:d.district, province:'ปทุมธานี', price:price, rai:rai, sizeText:d.sizeText.trim() || (rai + ' ไร่'), deed:d.deed, owner:d.owner, dim:d.dim.trim() || '-', images:images, mapUrl:googleMapUrl(d.mapUrl), lat:lat, lng:lng, img:images[0] || '', imgId:'photo-1500382017468-9049fed747ef', gid:['photo-1523348837708-15d4a09cfac2','photo-1416879595882-3373a0480b5b'], verified:!!d.verified, ready:!!d.ready, road:!!d.road, water:!!d.water, power:!!d.power, purposes:d.purposes.slice(), tags:d.tags.split(',').map(function (s) { return s.trim(); }).filter(Boolean), highlights:d.highlights.split('\n').map(function (s) { return s.trim(); }).filter(Boolean), nearby:[], pin:{ x:Math.round(20 + Math.random() * 60), y:Math.round(15 + Math.random() * 55) } };
-    var list = state.listings.slice(); var idx = list.findIndex(function (x) { return x.id === obj.id; });
-    if (idx >= 0) list[idx] = Object.assign({}, list[idx], obj); else list.unshift(obj);
-    persist(list); set({ listings: list, editing: null });
-  }
-  function deleteListing(id) { if (window.confirm && !window.confirm('ลบประกาศนี้ออกจากเว็บไซต์?')) return; var list = state.listings.filter(function (x) { return x.id !== id; }); persist(list); set({ listings: list }); }
-  function resetData() { if (window.confirm && !window.confirm('คืนค่าประกาศทั้งหมดกลับเป็นข้อมูลเริ่มต้น?')) return; var d = defaults(); persist(d); set({ listings: d }); }
-
-  // reviews
-  function blankReview() { return { id:null, name:'', plot:'', rating:5, avatar:'', text:'', _err:false }; }
-  function openAddReview() { set({ reviewEditing: blankReview() }); }
-  function openEditReview(id) { var r = state.reviews.find(function (x) { return x.id === id; }); if (!r) return; set({ reviewEditing: Object.assign({}, r, { _err:false }) }); }
-  function closeReview() { set({ reviewEditing: null }); }
-  function setReviewDraft(k, v) { var d = Object.assign({}, state.reviewEditing); d[k] = v; d._err = false; set({ reviewEditing: d }); }
-  function saveReview() {
-    var d = state.reviewEditing; if (!d) return;
-    if (!d.name.trim() || !d.text.trim()) { set({ reviewEditing: Object.assign({}, d, { _err:true }) }); return; }
-    var obj = { id:d.id || ('rv' + Date.now()), name:d.name.trim(), plot:d.plot.trim(), rating:Number(d.rating) || 5, avatar:d.avatar.trim(), text:d.text.trim() };
-    var list = state.reviews.slice(); var idx = list.findIndex(function (x) { return x.id === obj.id; });
-    if (idx >= 0) list[idx] = obj; else list.unshift(obj);
-    persistReviews(list); set({ reviews: list, reviewEditing: null });
-  }
-  function deleteReview(id) { if (window.confirm && !window.confirm('ลบรีวิวนี้?')) return; var list = state.reviews.filter(function (x) { return x.id !== id; }); persistReviews(list); set({ reviews: list }); }
-
   // contact
-  function openContact(type) { set({ contactType:type, contactDone:false, contactErr:false, contactErrorMessage:'', contactSubmitting:false, cName:'', cPhone:'', cLine:'', cDate:'', cNote:'', cWebsite:'', contactConsent:false, reportReason:'', docSel:[], advisorOpen:false }); }
-  function closeContact() { set({ contactType: null }); }
+  function openContact(type) {
+    if (!state.listings.length) return;
+    contactRequest++;
+    set({ activeId:activeListing().id, contactType:type, contactDone:false, contactErr:false, contactErrorMessage:'', contactSubmitting:false, cName:'', cPhone:'', cLine:'', cDate:'', cNote:'', cWebsite:'', contactConsent:false, reportReason:'', docSel:[], advisorOpen:false });
+  }
+  function closeContact() { if (!state.contactSubmitting) { contactRequest++; set({contactType:null}); } }
+  function updateContact(field, value) {
+    state[field] = value;
+    if (state.contactErr) set({contactErr:false, contactErrorMessage:''});
+  }
   function toggleDoc(v) { var arr = state.docSel.slice(); var i = arr.indexOf(v); i >= 0 ? arr.splice(i, 1) : arr.push(v); set({ docSel: arr }); }
   async function submitContact() {
     if (state.contactSubmitting) return;
-    var name = state.cName.trim(), phone = state.cPhone.trim(), phoneDigits = phone.replace(/\D/g, '');
-    if (!name || phoneDigits.length < 9 || phoneDigits.length > 15 || !state.contactConsent) {
-      set({ contactErr: true, contactErrorMessage: !state.contactConsent ? 'กรุณายินยอมให้ทีมงานติดต่อกลับ' : 'กรุณากรอกชื่อและเบอร์โทรที่ติดต่อได้' });
+    var name = state.cName.trim(), phone = state.cPhone.trim();
+    var validationError = core.contactError(state);
+    if (validationError) {
+      set({ contactErr:true, contactErrorMessage:validationError });
       return;
     }
     // Honeypot: bots often fill this hidden field. Show success without storing spam.
@@ -337,15 +288,18 @@
       source: (window.location.origin + window.location.pathname).slice(0, 500)
     };
     set({ contactSubmitting:true, contactErr:false, contactErrorMessage:'' });
+    var request = contactRequest;
     try {
-      var response = await fetch(cfg.url + '/rest/v1/customer_leads', {
+      var response = await core.fetchWithTimeout(cfg.url + '/rest/v1/customer_leads', {
         method: 'POST',
-        headers: { apikey:cfg.publishableKey, Authorization:'Bearer ' + cfg.publishableKey, 'Content-Type':'application/json', Prefer:'return=minimal' },
+        headers: { apikey:cfg.publishableKey, 'Content-Type':'application/json', Prefer:'return=minimal' },
         body: JSON.stringify(payload)
       });
       if (!response.ok) throw new Error('lead_submit_failed');
+      if (request !== contactRequest) return;
       set({ contactDone:true, contactErr:false, contactSubmitting:false });
     } catch (error) {
+      if (request !== contactRequest) return;
       set({ contactErr:true, contactErrorMessage:'ส่งข้อมูลไม่สำเร็จ กรุณาลองอีกครั้งหรือโทร 097-428-7891', contactSubmitting:false });
     }
   }
@@ -375,6 +329,7 @@
   function landCard(l) {
     var v = vmCard(l);
     var badge = '';
+    if (l.status === 'reserved' || l.status === 'sold') badge += '<span class="listing-status">' + (l.status === 'sold' ? 'ขายแล้ว' : 'จองแล้ว') + '</span>';
     if (l.featured) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:14.3px;font-weight:700;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">★ ที่ดินแนะนำ</span>';
     if (l.verified) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.94);color:#1F4A34;font-size:14.3px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.12)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>ตรวจสอบแล้ว</span>';
     if (l.ready) badge += '<span style="display:inline-flex;align-items:center;gap:4px;background:#E3A81E;color:#fff;font-size:14.3px;font-weight:600;padding:4px 9px;border-radius:20px;box-shadow:0 1px 4px rgba(0,0,0,.18)">ฟรีค่าโอน</span>';
@@ -423,13 +378,13 @@
     return '' +
     '<header style="position:sticky;top:0;z-index:50;background:rgba(247,245,240,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #E7E3DA">' +
       '<div class="site-header-inner" style="max-width:1240px;margin:0 auto;padding:0 24px;height:70px;display:flex;align-items:center;gap:28px">' +
-        '<div ' + click(function () { go('home'); }) + ' style="display:flex;align-items:center;gap:11px;cursor:pointer;flex:none">' +
+        '<a href="#home" ' + click(function (e) { e.preventDefault(); go('home'); }) + ' aria-label="ทรายทองพัฒนา กลับหน้าแรก" style="display:flex;align-items:center;gap:11px;cursor:pointer;flex:none">' +
           '<div style="width:46px;height:46px;border-radius:50%;overflow:hidden;background:#fff;border:1px solid #EFE3D0;flex:none;box-shadow:0 2px 8px rgba(31,74,52,.15)"><img src="' + LOGO + '" alt="ทรายทองพัฒนา" style="width:100%;height:100%;object-fit:cover;transform:scale(1.05)"></div>' +
           '<div style="line-height:1.05">' +
             '<div style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:21.5px;color:#1F4A34">ทรายทองพัฒนา</div>' +
             '<div style="font-size:13.7px;color:#8A8F84;letter-spacing:.3px;font-weight:500">ที่ดินสายคลอง · ปทุมธานี · นครนายก</div>' +
           '</div>' +
-        '</div>' +
+        '</a>' +
       '</div>' +
     '</header>';
   }
@@ -444,7 +399,7 @@
     var filtered = filteredListings();
     var featured = filtered.map(landCard).join('');
     var hasFilters = state.filterDistrict !== 'ทุกพื้นที่' || state.filterBudget !== 'ไม่จำกัด' || state.filterSize !== 'ทุกขนาด' || state.filterPurpose !== 'ทุกประเภท';
-    var resultText = hasFilters ? 'พบ ' + filtered.length + ' แปลงตามตัวกรองที่เลือก' : 'ข้อมูล ราคา และรูปภาพจากทรายทองพัฒนา';
+    var resultText = 'พบ ' + filtered.length + ' แปลง' + (hasFilters ? 'ตามตัวกรองที่เลือก' : ' · ข้อมูลจากทรายทองพัฒนา');
     var emptyResults = '<div style="grid-column:1/-1;text-align:center;background:#fff;border:1px solid #E7E3DA;border-radius:16px;padding:42px 20px;color:#6B7065"><div style="font-size:23.4px;font-weight:700;color:#1F4A34;margin-bottom:6px">ไม่พบที่ดินตามเงื่อนไข</div><div style="font-size:18.2px;margin-bottom:16px">ลองเปลี่ยนงบประมาณ ขนาด หรือวัตถุประสงค์</div><button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;padding:10px 16px;border-radius:10px;font-weight:700;cursor:pointer">ล้างตัวกรอง</button></div>';
 
     var trustItems = [
@@ -494,7 +449,7 @@
         '<div class="hero-inner" style="position:relative;max-width:1240px;margin:0 auto;padding:76px 24px 92px">' +
           '<div style="display:inline-flex;align-items:center;gap:8px;background:rgba(235,217,168,.16);border:1px solid rgba(235,217,168,.4);color:#EBD9A8;font-size:16.9px;font-weight:500;padding:7px 14px;border-radius:30px;margin-bottom:22px"><span style="width:7px;height:7px;border-radius:50%;background:#7ED9A0"></span>ซื้อขายที่ดินปทุมธานี ราคาถูก สายคลอง by ทรายทองพัฒนา</div>' +
           '<h1 class="hero-h1" style="font-family:\'Noto Serif Thai\',serif;font-weight:700;font-size:67.6px;line-height:1.18;color:#fff;margin:0 0 18px;max-width:820px;letter-spacing:-.5px">ค้นหาที่ดินที่ใช่<br>สำหรับบ้าน ธุรกิจ และการลงทุน</h1>' +
-          '<p style="font-size:23.4px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:680px;font-weight:300">รวมที่ดินพร้อมขายในปทุมธานี นครนายก และพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และเอกสารสิทธิ์ได้ในที่เดียว</p>' +
+          '<p style="font-size:23.4px;line-height:1.6;color:rgba(255,255,255,.82);margin:0 0 40px;max-width:680px;font-weight:300">ที่ดินปทุมธานี นครนายก และพื้นที่สายคลอง ค้นหาตามทำเล งบประมาณ ขนาด และวัตถุประสงค์</p>' +
           '<div class="hero-search" style="background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(20,40,28,.28);padding:12px;display:flex;align-items:stretch;gap:2px">' +
             '<div class="hov-soft search-field" style="flex:1.3;padding:12px 18px;border-radius:14px;cursor:pointer"><div style="font-size:15.6px;font-weight:600;color:#1F4A34;margin-bottom:3px">ทำเล</div>' + heroSelect(['ทุกพื้นที่','ปทุมธานี (ทุกอำเภอ)','เมืองปทุมธานี','คลองหลวง','ธัญบุรี','หนองเสือ','ลาดหลุมแก้ว','ลำลูกกา','สามโคก','นครนายก (ทุกอำเภอ)','เมืองนครนายก','ปากพลี','บ้านนา','องครักษ์'],state.filterDistrict,function(e){set({filterDistrict:e.target.value});}) + '</div>' +
             '<div class="search-divider" style="width:1px;background:#EAE6DC;margin:8px 0"></div>' +
@@ -509,9 +464,10 @@
       '</section>' +
 
       // FEATURED
-      '<section id="featured-listings" class="featured-section" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
+      '<section id="featured-listings" tabindex="-1" class="featured-section" style="max-width:1240px;margin:0 auto;padding:64px 24px 20px">' +
         '<div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap">' +
-          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:36.4px;font-weight:600;margin:0 0 4px;color:#1B2019">ที่ดินพร้อมขาย</h2><p style="margin:0;color:#8A8F84;font-size:18.9px">' + resultText + '</p></div>' +
+          '<div><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:36.4px;font-weight:600;margin:0 0 4px;color:#1B2019">' + (state.onlyFavs ? 'ที่ดินที่บันทึกไว้' : 'ที่ดินพร้อมขาย') + '</h2><p aria-live="polite" style="margin:0;color:#63695f;font-size:18.9px">' + resultText + '</p></div>' +
+          '<button class="saved-filter" aria-pressed="' + state.onlyFavs + '" ' + click(function() { set({onlyFavs:!state.onlyFavs}); scrollFeatured(); }) + '>' + (state.onlyFavs ? 'ดูประกาศทั้งหมด' : 'ที่บันทึกไว้ (' + state.favs.length + ')') + '</button>' +
           (hasFilters ? '<button ' + click(clearFilters) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:18.2px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer">ล้างตัวกรอง</button>' : '') +
         '</div>' +
         '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">' + (featured || emptyResults) + '</div>' +
@@ -534,13 +490,17 @@
   }
 
   function detail() {
+    if (!state.listings.some(function(l) { return l.id === state.activeId; })) {
+      return '<main class="unavailable-listing"><h1>' + (state.dataStatus === 'loading' ? 'กำลังค้นหาประกาศ…' : 'ไม่พบประกาศนี้') + '</h1><p>ประกาศอาจถูกนำออก หรือยังไม่สามารถโหลดข้อมูลล่าสุดได้</p><button class="saved-filter" ' + click(function() { go('home'); }) + '>กลับไปดูประกาศทั้งหมด</button></main>';
+    }
     var a = activeListing();
     var imgs = galleryImgs(a);
-    var lat = (a.lat != null) ? a.lat : districtCoord(a.district)[0];
-    var lng = (a.lng != null) ? a.lng : districtCoord(a.district)[1];
+    var exactPoint = a.lat != null && a.lng != null ? core.coordinates(a.lat + ',' + a.lng) : null;
+    var lat = exactPoint ? exactPoint.lat : districtCoord(a.district)[0];
+    var lng = exactPoint ? exactPoint.lng : districtCoord(a.district)[1];
     var moreCount = Math.max(0, imgs.length - 3);
 
-    var badges = [a.verified ? 'ตรวจสอบเบื้องต้นแล้ว' : null, a.ready ? 'ฟรีค่าโอน' : null].filter(Boolean)
+    var badges = [a.status === 'sold' ? 'ขายแล้ว' : a.status === 'reserved' ? 'จองแล้ว' : null, a.verified ? 'ตรวจสอบเบื้องต้นแล้ว' : null, a.ready ? 'ฟรีค่าโอน' : null].filter(Boolean)
       .map(function (b) { return '<span style="display:inline-flex;align-items:center;gap:5px;background:#EAF1EB;color:#1F4A34;font-size:16.3px;font-weight:600;padding:6px 12px;border-radius:20px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' + esc(b) + '</span>'; }).join('');
 
     var highlights = (a.highlights || []).map(function (h) { return '<li style="display:flex;align-items:flex-start;gap:9px;font-size:18.9px;color:#4A5047;line-height:1.5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2F8F5B" stroke-width="2.4" style="flex:none;margin-top:2px"><polyline points="20 6 9 17 4 12"></polyline></svg>' + esc(h) + '</li>'; }).join('');
@@ -548,7 +508,7 @@
     var utils = [
       a.power ? { l:'ไฟฟ้า', i:ICON.bolt } : { l:'ไม่มีไฟฟ้า', i:ICON.bolt },
       a.water ? { l:'น้ำประปา/คลอง', i:ICON.wave } : { l:'ไม่มีน้ำ', i:ICON.wave },
-      a.road ? { l:'ถนนเข้าถึง', i:ICON.road } : { l:'ทางเข้าแคบ', i:ICON.road }
+      a.road ? { l:'ถนนเข้าถึง', i:ICON.road } : { l:'โปรดสอบถามทางเข้า', i:ICON.road }
     ].map(function (u) { return '<div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E7E3DA;border-radius:12px;padding:12px 16px;font-size:17.6px;font-weight:500;color:#3B4038">' + ic(u.i) + esc(u.l) + '</div>'; }).join('');
 
     var purposes = (a.purposes || []).map(function (p) { return '<span style="background:#F4EFE4;color:#7A5C3E;font-size:17.6px;font-weight:600;padding:8px 16px;border-radius:12px">' + esc(p) + '</span>'; }).join('');
@@ -560,7 +520,7 @@
     var isFav = state.favs.includes(a.id);
     var favBg = isFav ? '#FBEDEB' : '#fff', favBorder = isFav ? '#E7C9C5' : '#E7E3DA', favColor = isFav ? '#C0453B' : '#4A5047', favFill = isFav ? '#C0453B' : 'none', favLabel = isFav ? 'บันทึกแล้ว' : 'บันทึกไว้';
 
-    var related = state.listings.filter(function (l) { return l.id !== a.id; }).slice(0, 4).map(landCard).join('');
+    var related = state.listings.filter(function (l) { return l.id !== a.id && l.status !== 'sold'; }).slice(0, 4).map(landCard).join('');
 
     var galleryHtml;
     if (imgs.length === 1) {
@@ -611,9 +571,9 @@
           '<h2 style="font-size:24.7px;font-weight:600;color:#1B2019;margin:0 0 12px">เหมาะสำหรับ</h2>' +
           '<div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:28px">' + purposes + '</div>' +
           '<h2 style="font-size:24.7px;font-weight:600;color:#1B2019;margin:0 0 12px">ทำเลและสถานที่ใกล้เคียง</h2>' +
-          '<div style="border:1px solid #E7E3DA;border-radius:16px;overflow:hidden;margin-bottom:14px"><iframe title="ทำเลที่ดิน" src="' + attr(mapSrcFor(lat, lng)) + '" style="width:100%;height:360px;border:0;display:block"></iframe></div>' +
-          '<a href="' + attr(googleMapLinkFor(a, lat, lng)) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;color:#1F4A34;font-size:18.2px;font-weight:700;margin:0 0 14px;text-decoration:none">เปิดตำแหน่งนี้ใน Google Maps ↗</a>' +
-          '<ul style="list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">' + nearby + '</ul>' +
+          (exactPoint ? '<div style="border:1px solid #E7E3DA;border-radius:16px;overflow:hidden;margin-bottom:14px"><iframe loading="lazy" title="ทำเลที่ดิน" src="' + attr(mapSrcFor(lat, lng)) + '" style="width:100%;height:360px;border:0;display:block"></iframe></div>' : '<p class="map-notice">ยังไม่ระบุพิกัดแปลง กรุณาสอบถามผู้ขายก่อนเดินทาง</p>') +
+          (exactPoint || googleMapUrl(a.mapUrl) ? '<a href="' + attr(googleMapLinkFor(a, lat, lng)) + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;color:#1F4A34;font-size:18.2px;font-weight:700;margin:0 0 14px;text-decoration:none">เปิดตำแหน่งนี้ใน Google Maps ↗</a>' : '') +
+          '<ul class="nearby-list" style="list-style:none;padding:0;margin:0 0 8px;display:grid;grid-template-columns:1fr 1fr;gap:10px">' + nearby + '</ul>' +
         '</div>' +
 
         // STICKY CTA
@@ -635,95 +595,34 @@
       '</div>' +
 
       // nearby
-      '<div style="margin-top:56px">' +
+      (related ? '<div style="margin-top:56px">' +
         '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:31.2px;font-weight:600;color:#1B2019;margin:0 0 20px">ที่ดินใกล้เคียงที่คุณอาจสนใจ</h2>' +
         '<div class="grid-4" style="display:grid;grid-template-columns:repeat(4,1fr);gap:22px">' + related + '</div>' +
-      '</div>' +
-    '</main>';
-  }
-
-  function adminLogin() {
-    return '<main style="max-width:460px;margin:0 auto;padding:70px 24px 90px">' +
-      '<div style="background:#fff;border:1px solid #E7E3DA;border-radius:20px;padding:36px 32px;box-shadow:0 10px 30px rgba(31,74,52,.08)">' +
-        '<div style="width:56px;height:56px;border-radius:16px;background:#EAF1EB;display:flex;align-items:center;justify-content:center;color:#1F4A34;margin-bottom:20px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>' +
-        '<h1 style="font-family:\'Noto Serif Thai\',serif;font-size:33.8px;font-weight:700;color:#1B2019;margin:0 0 6px">สำหรับเจ้าของเว็บไซต์</h1>' +
-        '<p style="color:#8A8F84;font-size:18.9px;margin:0 0 24px;line-height:1.5">เข้าสู่ระบบเพื่อเพิ่มหรือแก้ไขประกาศที่ดิน</p>' +
-        '<label style="display:block;font-size:17.6px;font-weight:600;color:#3B4038;margin-bottom:8px">รหัสผ่าน</label>' +
-        '<input type="password" data-fk="pw" value="' + attr(state.pw) + '" ' + oninput(function (e) { set({ pw: e.target.value, pwErr: false }); }) + ' ' + onkey(function (e) { if (e.key === 'Enter') login(); }) + ' placeholder="กรอกรหัสผ่าน" style="width:100%;border:1.5px solid ' + (state.pwErr ? '#C0453B' : '#E0DBD0') + ';border-radius:12px;padding:13px 15px;font-size:19.5px;color:#1B2019;outline:none;margin-bottom:6px">' +
-        (state.pwErr ? '<div style="color:#C0453B;font-size:16.3px;font-weight:500;margin-bottom:8px">รหัสผ่านไม่ถูกต้อง</div>' : '') +
-        '<button ' + click(login) + ' class="btn-dark" style="width:100%;margin-top:12px;background:#1F4A34;color:#fff;border:none;border-radius:12px;padding:14px;font-size:19.5px;font-weight:600;cursor:pointer">เข้าสู่ระบบ</button>' +
-        '<div style="margin-top:18px;font-size:15.6px;color:#A7A99F;text-align:center">รหัสผ่านตัวอย่าง: 123456</div>' +
-      '</div>' +
-    '</main>';
-  }
-
-  function adminPanel() {
-    var rows = state.listings.map(function (l) {
-      return '<div class="admin-row" style="display:grid;grid-template-columns:64px 1fr 130px 130px 150px;gap:14px;padding:14px 20px;align-items:center;border-top:1px solid #EEEBE3">' +
-        '<div style="width:56px;height:44px;border-radius:9px;overflow:hidden;background:#E4EAE1"><img src="' + attr(listImg(l)) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>' +
-        '<div><div style="font-size:18.2px;font-weight:600;color:#1B2019;line-height:1.35">' + esc(l.title) + '</div><div style="font-size:15.6px;color:#8A8F84;margin-top:2px">' + esc(l.sizeText) + ' · ' + esc(l.deed) + '</div></div>' +
-        '<div class="admin-hide" style="font-size:17.6px;color:#4A5047">' + esc(l.district) + '</div>' +
-        '<div class="admin-hide" style="font-size:18.2px;font-weight:700;color:#1F4A34">฿' + fmt(l.price) + '</div>' +
-        '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-          '<button ' + click((function (id) { return function () { openEdit(id); }; })(l.id)) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:16.3px;font-weight:600;padding:8px 13px;border-radius:9px;cursor:pointer">แก้ไข</button>' +
-          '<button ' + click((function (id) { return function () { deleteListing(id); }; })(l.id)) + ' class="btn-del" aria-label="ลบ" style="width:36px;height:34px;background:#fff;border:1px solid #E7C9C5;color:#C0453B;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg></button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    var reviewRows = state.reviews.map(function (rv) {
-      var av = (rv.avatar && rv.avatar.trim()) ? rv.avatar : img('photo-1500382017468-9049fed747ef');
-      return '<div class="admin-row" style="display:grid;grid-template-columns:56px 1fr 100px 130px;gap:14px;padding:14px 20px;align-items:center;border-top:1px solid #EEEBE3">' +
-        '<div style="width:48px;height:48px;border-radius:50%;overflow:hidden;background:#E4EAE1"><img src="' + attr(av) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>' +
-        '<div><div style="font-size:18.2px;font-weight:600;color:#1B2019">' + esc(rv.name) + ' <span style="color:#8A8F84;font-weight:400;font-size:16.3px">· ' + esc(rv.plot) + '</span></div><div style="font-size:16.3px;color:#8A8F84;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px">' + esc(rv.text) + '</div></div>' +
-        '<div class="admin-hide" style="font-size:17.6px;font-weight:700;color:#E3A81E">★ ' + rv.rating + '.0</div>' +
-        '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-          '<button ' + click((function (id) { return function () { openEditReview(id); }; })(rv.id)) + ' class="btn-outline" style="background:#fff;border:1px solid #D9D4C8;color:#1F4A34;font-size:16.3px;font-weight:600;padding:8px 13px;border-radius:9px;cursor:pointer">แก้ไข</button>' +
-          '<button ' + click((function (id) { return function () { deleteReview(id); }; })(rv.id)) + ' class="btn-del" aria-label="ลบ" style="width:36px;height:34px;background:#fff;border:1px solid #E7C9C5;color:#C0453B;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"></path></svg></button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    return '<main style="max-width:1080px;margin:0 auto;padding:34px 24px 90px">' +
-      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:24px">' +
-        '<div>' +
-          '<div style="display:inline-flex;align-items:center;gap:7px;background:#EAF1EB;color:#1F4A34;font-size:16.3px;font-weight:600;padding:5px 12px;border-radius:20px;margin-bottom:10px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="20 6 9 17 4 12"></polyline></svg>เข้าสู่ระบบในฐานะเจ้าของเว็บไซต์</div>' +
-          '<h1 style="font-family:\'Noto Serif Thai\',serif;font-size:36.4px;font-weight:700;color:#1B2019;margin:0">จัดการประกาศที่ดิน <span style="color:#8A8F84;font-weight:500;font-size:26px">· ' + state.listings.length + ' รายการ</span></h1>' +
-        '</div>' +
-        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
-          '<button ' + click(resetData) + ' class="btn-danger-h" style="background:#fff;border:1px solid #E0DBD0;color:#8A8F84;font-size:17.6px;font-weight:500;padding:11px 16px;border-radius:11px;cursor:pointer">คืนค่าเริ่มต้น</button>' +
-          '<button ' + click(logout) + ' class="btn-outline" style="background:#fff;border:1px solid #E0DBD0;color:#4A5047;font-size:17.6px;font-weight:500;padding:11px 16px;border-radius:11px;cursor:pointer">ออกจากระบบ</button>' +
-          '<button ' + click(openAdd) + ' class="btn-dark" style="background:#1F4A34;border:none;color:#fff;font-size:18.2px;font-weight:600;padding:12px 20px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(31,74,52,.22)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"></path></svg>เพิ่มที่ดินใหม่</button>' +
-        '</div>' +
-      '</div>' +
-      '<div style="background:#fff;border:1px solid #E7E3DA;border-radius:16px;overflow:hidden">' +
-        '<div class="admin-head" style="display:grid;grid-template-columns:64px 1fr 130px 130px 150px;gap:14px;padding:14px 20px;background:#F1F0EA;font-size:16.3px;font-weight:600;color:#6B7065"><div>รูป</div><div>ชื่อประกาศ</div><div class="admin-hide">อำเภอ</div><div class="admin-hide">ราคา</div><div style="text-align:right">จัดการ</div></div>' +
-        rows +
-      '</div>' +
-      '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:40px 0 18px">' +
-        '<h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28.6px;font-weight:700;color:#1B2019;margin:0">รีวิวลูกค้า <span style="color:#8A8F84;font-weight:500;font-size:20.8px">· ' + state.reviews.length + ' รายการ</span></h2>' +
-        '<button ' + click(openAddReview) + ' class="btn-marigold" style="background:#E3A81E;border:none;color:#fff;font-size:17.6px;font-weight:600;padding:11px 18px;border-radius:11px;cursor:pointer;display:flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(184,137,46,.25)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"></path></svg>เพิ่มรีวิว</button>' +
-      '</div>' +
-      '<div style="background:#fff;border:1px solid #E7E3DA;border-radius:16px;overflow:hidden">' +
-        '<div class="admin-head" style="display:grid;grid-template-columns:56px 1fr 100px 130px;gap:14px;padding:14px 20px;background:#F1F0EA;font-size:16.3px;font-weight:600;color:#6B7065"><div>รูป</div><div>ลูกค้า / รีวิว</div><div class="admin-hide">คะแนน</div><div style="text-align:right">จัดการ</div></div>' +
-        reviewRows +
-      '</div>' +
+      '</div>' : '') +
     '</main>';
   }
 
   function footer() {
     var cols = [
-      { title:'ประกาศปัจจุบัน', links:['ที่ดินคลอง 7 ลำลูกกา','500 ตารางวา','ถมแล้วพร้อมใช้'] },
-      { title:'เหมาะสำหรับ', links:['สร้างบ้าน','บ้านสวนติดคลอง','โกดัง / ร้านอาหาร'] },
-      { title:'ข้อมูลทำเล', links:['ลำลูกกา ปทุมธานี','ติดคลอง 7','ติดถนนสาธารณะ'] },
+      { title:'ประกาศที่ดิน', links:['ดูประกาศทั้งหมด','ที่ดินที่บันทึกไว้'] },
+      { title:'เหมาะสำหรับ', links:['สร้างบ้าน','ลงทุน','โกดัง / โรงงาน'] },
+      { title:'ข้อมูลทำเล', links:['ปทุมธานี (ทุกอำเภอ)','นครนายก (ทุกอำเภอ)'] },
       { title:'ติดต่อทรายทองพัฒนา', links:['โทร 097-428-7891','Facebook ทรายทองพัฒนา','แผนที่สำนักงาน'] }
     ].map(function (c) {
       var links = c.links.map(function (lk) {
-        var href = '#';
+        var href = '#home';
         if (lk === 'โทร 097-428-7891') href = 'tel:0974287891';
         else if (lk === 'Facebook ทรายทองพัฒนา') href = 'https://www.facebook.com/saithongptn';
         else if (lk === 'แผนที่สำนักงาน') href = 'https://www.bing.com/maps/search?q=สำนักงานขาย+ทรายทองพัฒนา%2C+Amphoe+Muang+Pathum+Thani%2C+Thailand';
-        return '<a href="' + attr(href) + '"' + (href.indexOf('http') === 0 ? ' target="_blank" rel="noopener"' : '') + ' class="foot-link" style="font-size:16.9px;color:rgba(255,255,255,.62)">' + esc(lk) + '</a>';
+        var action = href === '#home' ? ' ' + click(function(e) {
+          e.preventDefault();
+          state.onlyFavs = lk === 'ที่ดินที่บันทึกไว้';
+          state.filterDistrict = c.title === 'ข้อมูลทำเล' ? lk : 'ทุกพื้นที่';
+          state.filterPurpose = c.title === 'เหมาะสำหรับ' ? lk : 'ทุกประเภท';
+          state.filterBudget = 'ไม่จำกัด'; state.filterSize = 'ทุกขนาด';
+          go('home'); setTimeout(scrollFeatured, 260);
+        }) : '';
+        return '<a href="' + attr(href) + '"' + action + (href.indexOf('http') === 0 ? ' target="_blank" rel="noopener"' : '') + ' class="foot-link" style="font-size:16.9px;color:rgba(255,255,255,.75)">' + esc(lk) + '</a>';
       }).join('');
       return '<div><div style="font-size:17.6px;font-weight:600;color:#fff;margin-bottom:14px">' + esc(c.title) + '</div><div style="display:flex;flex-direction:column;gap:9px">' + links + '</div></div>';
     }).join('');
@@ -754,7 +653,7 @@
   }
 
   function advisorWidget() {
-    if (state.advisorHidden) return '';
+    if (state.advisorHidden || state.contactType || state.lightbox >= 0 || state.showCompareModal) return '';
     var panel = state.advisorOpen ?
       '<div class="advisor-panel" role="dialog" aria-label="ปรึกษาซื้อขายที่ดิน">' +
         '<button ' + click(function () { set({ advisorOpen: false }); }) + ' class="advisor-panel-close" aria-label="ปิดหน้าต่างปรึกษา">×</button>' +
@@ -792,115 +691,10 @@
           '<div style="display:flex;justify-content:space-between"><span style="color:#8A8F84">อำเภอ</span><span style="font-weight:600">' + esc(l.district) + '</span></div>' +
         '</div></div></div>';
     }).join('');
-    return '<div ' + click(function () { set({ showCompareModal: false }); }) + ' style="position:fixed;inset:0;z-index:70;background:rgba(20,31,24,.55);display:flex;align-items:center;justify-content:center;padding:30px">' +
+    return '<div class="compare-overlay modal-layer" ' + click(function () { set({ showCompareModal: false }); }) + ' style="position:fixed;inset:0;z-index:70;background:rgba(20,31,24,.55);display:flex;align-items:center;justify-content:center;padding:30px">' +
       '<div ' + click(function (e) { e.stopPropagation(); }) + ' class="thin" style="background:#fff;border-radius:20px;max-width:920px;width:100%;max-height:86vh;overflow:auto;padding:28px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:31.2px;font-weight:600;margin:0;color:#1B2019">เปรียบเทียบที่ดิน</h2><button ' + click(function () { set({ showCompareModal: false }); }) + ' style="width:38px;height:38px;border-radius:10px;background:#F1F0EA;border:none;cursor:pointer;font-size:26px;color:#4A5047">×</button></div>' +
         '<div class="compare-modal-grid" style="display:grid;grid-template-columns:repeat(' + Math.max(1, items.length) + ',1fr);gap:16px">' + cols + '</div>' +
-      '</div>' +
-    '</div>';
-  }
-
-  function field(label, value, handler, opts) {
-    opts = opts || {};
-    var star = opts.required ? ' *' : '';
-    var type = opts.type || 'text';
-    var extra = opts.inputmode ? ' inputmode="' + opts.inputmode + '"' : '';
-    var fk = opts.fk || label;
-    return '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">' + esc(label) + star + '</label>' +
-      '<input type="' + type + '" data-fk="' + attr(fk) + '"' + extra + ' value="' + attr(value) + '" ' + oninput(handler) + ' placeholder="' + attr(opts.placeholder || '') + '" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.9px;color:#1B2019;outline:none' + (opts.mb === false ? '' : ';margin-bottom:16px') + '">';
-  }
-  function selectField(label, value, options, handler, fk) {
-    var opts = options.map(function (o) { return '<option' + (o === value ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('');
-    return '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">' + esc(label) + '</label>' +
-      '<select data-fk="' + attr(fk || label) + '" ' + onchange(handler) + ' style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.2px;color:#3B4038;cursor:pointer;outline:none">' + opts + '</select>';
-  }
-
-  function editModal() {
-    var d = state.editing; if (!d) return '';
-    var edRai = Number(d.rai) || 0, edPrice = Number(d.price) || 0, showCalc = edRai > 0 && edPrice > 0;
-
-    var calc = showCalc ? '<div style="display:flex;gap:10px;margin-bottom:16px">' +
-      '<div style="flex:1;background:#EAF1EB;border-radius:11px;padding:11px 14px"><div style="font-size:15px;color:#6B7065">ราคาต่อไร่</div><div style="font-size:20.8px;font-weight:700;color:#1F4A34">฿' + fmt(Math.round(edPrice / edRai)) + '</div></div>' +
-      '<div style="flex:1;background:#F4EFE4;border-radius:11px;padding:11px 14px"><div style="font-size:15px;color:#6B7065">ราคาต่อตารางวา</div><div style="font-size:20.8px;font-weight:700;color:#E3A81E">฿' + fmt(Math.round(edPrice / (edRai * 400))) + '</div></div>' +
-    '</div>' : '';
-
-    var thumbs = (d.images || []).length ? '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">' + (d.images || []).map(function (u, i) {
-      return '<div style="position:relative;width:88px;height:66px;border-radius:10px;overflow:hidden;background:#E4EAE1;border:1px solid #E0DBD0"><img src="' + attr(u) + '" alt="" style="width:100%;height:100%;object-fit:cover">' +
-        (i === 0 ? '<span style="position:absolute;left:4px;top:4px;background:rgba(31,74,52,.9);color:#fff;font-size:12.4px;font-weight:600;padding:2px 6px;border-radius:6px">หน้าปก</span>' : '') +
-        '<button ' + click((function (idx) { return function () { removeDraftImage(idx); }; })(i)) + ' aria-label="ลบรูป" style="position:absolute;right:3px;top:3px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.6);border:none;color:#fff;cursor:pointer;font-size:18.2px;line-height:1;display:flex;align-items:center;justify-content:center">×</button></div>';
-    }).join('') + '</div>' : '';
-
-    var purposes = ['สร้างบ้าน','เกษตร','ลงทุน','รีสอร์ต','โกดัง'].map(function (pp) {
-      var on = !!(d.purposes && d.purposes.includes(pp));
-      return '<button ' + click((function (p) { return function () { toggleDraftPurpose(p); }; })(pp)) + ' style="border:1px solid ' + (on ? '#1F4A34' : '#E0DBD0') + ';background:' + (on ? '#1F4A34' : '#fff') + ';color:' + (on ? '#fff' : '#4A5047') + ';border-radius:20px;padding:8px 15px;font-size:16.9px;font-weight:500;cursor:pointer">' + esc(pp) + '</button>';
-    }).join('');
-
-    function checkbox(label, key, val) {
-      return '<label style="display:flex;align-items:center;gap:8px;font-size:17.6px;color:#4A5047;cursor:pointer"><input type="checkbox"' + (val ? ' checked' : '') + ' ' + onchange((function (k) { return function (e) { setDraft(k, e.target.checked); }; })(key)) + ' style="width:17px;height:17px;accent-color:#1F4A34;cursor:pointer">' + esc(label) + '</label>';
-    }
-
-    return '<div ' + click(closeEdit) + ' style="position:fixed;inset:0;z-index:75;background:rgba(20,31,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto">' +
-      '<div ' + click(function (e) { e.stopPropagation(); }) + ' style="background:#fff;border-radius:20px;max-width:640px;width:100%;padding:28px 30px 30px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px"><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:29.9px;font-weight:700;margin:0;color:#1B2019">' + (d.id ? 'แก้ไขประกาศที่ดิน' : 'เพิ่มที่ดินใหม่') + '</h2><button ' + click(closeEdit) + ' style="width:38px;height:38px;border-radius:10px;background:#F1F0EA;border:none;cursor:pointer;font-size:26px;color:#4A5047">×</button></div>' +
-        field('ชื่อประกาศ', d.title, function (e) { setDraft('title', e.target.value); }, { required:true, placeholder:'เช่น ที่ดินติดคลอง 7 ธัญบุรี', fk:'title' }) +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">' +
-          '<div>' + selectField('อำเภอ', d.district, ['ธัญบุรี','คลองหลวง','ลำลูกกา','หนองเสือ','สามโคก','ลาดหลุมแก้ว','เมืองปทุมธานี'], function (e) { setDraft('district', e.target.value); }, 'district') + '</div>' +
-          '<div>' + selectField('เอกสารสิทธิ์', d.deed, ['โฉนด (นส.4)','น.ส.3 ก.'], function (e) { setDraft('deed', e.target.value); }, 'deed') + '</div>' +
-          '<div>' + field('ราคา (บาท)', d.price, function (e) { setDraft('price', e.target.value.replace(/[^0-9]/g, '')); }, { required:true, inputmode:'numeric', placeholder:'2850000', fk:'price', mb:false }) + '</div>' +
-          '<div>' + field('ขนาด (ไร่)', d.rai, function (e) { setDraft('rai', e.target.value.replace(/[^0-9.]/g, '')); }, { required:true, inputmode:'decimal', placeholder:'2.5', fk:'rai', mb:false }) + '</div>' +
-          '<div>' + field('ขนาด (ไร่-งาน-ตร.ว.)', d.sizeText, function (e) { setDraft('sizeText', e.target.value); }, { placeholder:'2-1-30 ไร่', fk:'sizeText', mb:false }) + '</div>' +
-          '<div>' + field('หน้ากว้าง × ลึก', d.dim, function (e) { setDraft('dim', e.target.value); }, { placeholder:'40 × 92 ม.', fk:'dim', mb:false }) + '</div>' +
-        '</div>' +
-        calc +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">' +
-          '<div>' + selectField('ผู้ขาย', d.owner, ['เจ้าของขายเอง','นายหน้า'], function (e) { setDraft('owner', e.target.value); }, 'owner') + '</div>' +
-          '<div>' + field('ป้ายกำกับ (คั่นด้วย ,)', d.tags, function (e) { setDraft('tags', e.target.value); }, { placeholder:'ติดคลอง, ติดถนน, ใกล้เมือง', fk:'tags', mb:false }) + '</div>' +
-        '</div>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:8px">รูปภาพแปลงที่ดิน (เพิ่มได้หลายรูป)</label>' +
-        thumbs +
-        '<div style="display:flex;gap:10px;margin-bottom:10px">' +
-          '<input data-fk="_imgUrl" value="' + attr(d._imgUrl) + '" ' + oninput(function (e) { setDraft('_imgUrl', e.target.value); }) + ' ' + onkey(function (e) { if (e.key === 'Enter') { e.preventDefault(); addDraftImageUrl(); } }) + ' placeholder="วางลิงก์รูป (URL) แล้วกดเพิ่ม" style="flex:1;border:1px solid #E0DBD0;border-radius:11px;padding:11px 14px;font-size:18.2px;color:#1B2019;outline:none">' +
-          '<button ' + click(addDraftImageUrl) + ' style="flex:none;background:#1F4A34;color:#fff;border:none;border-radius:11px;padding:0 18px;font-size:18.2px;font-weight:600;cursor:pointer">เพิ่ม</button>' +
-        '</div>' +
-        '<label class="upload-drop" style="display:flex;align-items:center;justify-content:center;gap:8px;border:1.5px dashed #C9C2B2;border-radius:11px;padding:13px;font-size:17.6px;font-weight:600;color:#1F4A34;cursor:pointer;margin-bottom:18px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M17 8l-5-5-5 5M12 3v12"></path></svg>อัปโหลดรูปจากเครื่อง (เลือกหลายรูปได้)<input type="file" accept="image/*" multiple ' + onchange(function (e) { addDraftFiles(e.target.files); }) + ' style="display:none"></label>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">พิกัดแผนที่ (lat, lng)</label>' +
-        '<input data-fk="coord" value="' + attr(d.coord) + '" ' + oninput(function (e) { setDraft('coord', e.target.value); }) + ' placeholder="เช่น 14.0260, 100.7400 — วางจาก Google Maps (เว้นว่างจะใช้ตำแหน่งอำเภอ)" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.2px;color:#1B2019;outline:none;margin-bottom:16px">' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">ลิงก์ Google Maps (ไม่บังคับ)</label>' +
-        '<input data-fk="mapUrl" value="' + attr(d.mapUrl) + '" ' + oninput(function (e) { setDraft('mapUrl', e.target.value); }) + ' placeholder="https://maps.app.goo.gl/..." style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.2px;color:#1B2019;outline:none;margin-bottom:16px">' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">จุดเด่นของแปลง (บรรทัดละ 1 ข้อ)</label>' +
-        '<textarea data-fk="highlights" ' + oninput(function (e) { setDraft('highlights', e.target.value); }) + ' rows="3" placeholder="ติดคลองชลประทาน น้ำตลอดปี" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.2px;color:#1B2019;outline:none;resize:vertical;font-family:inherit;margin-bottom:16px">' + esc(d.highlights) + '</textarea>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:8px">เหมาะสำหรับ</label>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">' + purposes + '</div>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:8px">สถานะและสาธารณูปโภค</label>' +
-        '<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:24px">' + checkbox('ตรวจสอบแล้ว','verified',d.verified) + checkbox('พร้อมโอน','ready',d.ready) + checkbox('ติดถนน','road',d.road) + checkbox('มีน้ำ','water',d.water) + checkbox('มีไฟฟ้า','power',d.power) + '</div>' +
-        (d._err ? '<div style="color:#C0453B;font-size:16.9px;font-weight:500;margin-bottom:14px">กรุณากรอกชื่อประกาศ ราคา และขนาดที่ดิน</div>' : '') +
-        '<div style="display:flex;gap:12px;justify-content:flex-end"><button ' + click(closeEdit) + ' style="background:#fff;border:1px solid #E0DBD0;color:#4A5047;font-size:18.9px;font-weight:600;padding:13px 22px;border-radius:12px;cursor:pointer">ยกเลิก</button><button ' + click(saveDraft) + ' class="btn-dark" style="background:#1F4A34;border:none;color:#fff;font-size:18.9px;font-weight:600;padding:13px 26px;border-radius:12px;cursor:pointer">บันทึกประกาศ</button></div>' +
-      '</div>' +
-    '</div>';
-  }
-
-  function reviewModal() {
-    var d = state.reviewEditing; if (!d) return '';
-    var preview = (d.avatar && d.avatar.trim()) ? d.avatar : img('photo-1500382017468-9049fed747ef');
-    var starPicker = [1,2,3,4,5].map(function (n) {
-      var fill = n <= d.rating ? '#E0A82E' : '#E3DDCF';
-      return '<button ' + click((function (v) { return function () { setReviewDraft('rating', v); }; })(n)) + ' aria-label="ให้คะแนน" style="background:none;border:none;cursor:pointer;padding:2px"><svg width="30" height="30" viewBox="0 0 24 24" fill="' + fill + '" stroke="' + fill + '" stroke-width="1"><path d="M12 2l2.9 6.3 6.9.6-5.2 4.5 1.6 6.7L12 17l-6.2 3.6 1.6-6.7L2.2 8.9l6.9-.6z"></path></svg></button>';
-    }).join('');
-
-    return '<div ' + click(closeReview) + ' style="position:fixed;inset:0;z-index:75;background:rgba(20,31,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto">' +
-      '<div ' + click(function (e) { e.stopPropagation(); }) + ' style="background:#fff;border-radius:20px;max-width:540px;width:100%;padding:28px 30px 30px">' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px"><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:29.9px;font-weight:700;margin:0;color:#1B2019">' + (d.id ? 'แก้ไขรีวิว' : 'เพิ่มรีวิวลูกค้า') + '</h2><button ' + click(closeReview) + ' style="width:38px;height:38px;border-radius:10px;background:#F1F0EA;border:none;cursor:pointer;font-size:26px;color:#4A5047">×</button></div>' +
-        '<div style="display:flex;align-items:center;gap:16px;margin-bottom:18px"><div style="width:64px;height:64px;border-radius:50%;overflow:hidden;background:#E4EAE1;flex:none;border:2px solid #EEEBE3"><img src="' + attr(preview) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div><div style="flex:1"><label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">รูปลูกค้า (URL)</label><input data-fk="rAvatar" value="' + attr(d.avatar) + '" ' + oninput(function (e) { setReviewDraft('avatar', e.target.value); }) + ' placeholder="วางลิงก์รูปโปรไฟล์ลูกค้า" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:11px 14px;font-size:18.2px;color:#1B2019;outline:none"></div></div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">' +
-          '<div><label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">ชื่อลูกค้า *</label><input data-fk="rName" value="' + attr(d.name) + '" ' + oninput(function (e) { setReviewDraft('name', e.target.value); }) + ' placeholder="เช่น คุณสมชาย ก." style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.9px;color:#1B2019;outline:none"></div>' +
-          '<div><label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">แปลง / ทำเลที่ซื้อ</label><input data-fk="rPlot" value="' + attr(d.plot) + '" ' + oninput(function (e) { setReviewDraft('plot', e.target.value); }) + ' placeholder="เช่น ที่ดินธัญบุรี 2 ไร่" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.9px;color:#1B2019;outline:none"></div>' +
-        '</div>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:8px">คะแนน</label>' +
-        '<div style="display:flex;gap:6px;margin-bottom:16px">' + starPicker + '</div>' +
-        '<label style="display:block;font-size:16.9px;font-weight:600;color:#3B4038;margin-bottom:6px">ข้อความรีวิว *</label>' +
-        '<textarea data-fk="rText" ' + oninput(function (e) { setReviewDraft('text', e.target.value); }) + ' rows="4" placeholder="เล่าประสบการณ์การซื้อขายที่ดิน..." style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:11px;padding:12px 14px;font-size:18.2px;color:#1B2019;outline:none;resize:vertical;font-family:inherit;margin-bottom:16px">' + esc(d.text) + '</textarea>' +
-        (d._err ? '<div style="color:#C0453B;font-size:16.9px;font-weight:500;margin-bottom:14px">กรุณากรอกชื่อลูกค้าและข้อความรีวิว</div>' : '') +
-        '<div style="display:flex;gap:12px;justify-content:flex-end"><button ' + click(closeReview) + ' style="background:#fff;border:1px solid #E0DBD0;color:#4A5047;font-size:18.9px;font-weight:600;padding:13px 22px;border-radius:12px;cursor:pointer">ยกเลิก</button><button ' + click(saveReview) + ' class="btn-dark" style="background:#1F4A34;border:none;color:#fff;font-size:18.9px;font-weight:600;padding:13px 26px;border-radius:12px;cursor:pointer">บันทึกรีวิว</button></div>' +
       '</div>' +
     '</div>';
   }
@@ -909,7 +703,7 @@
     var ct = state.contactType; if (!ct) return '';
     var a = activeListing();
     var cfg = {
-      interest:{ title:'ให้คุณทรายติดต่อกลับ', subtitle:'ฝากข้อมูลไว้ คุณทรายจะติดต่อกลับเพื่อให้รายละเอียดแปลงนี้โดยตรง', cta:'ส่งข้อมูลให้ติดต่อกลับ', notePlaceholder:'เช่น สนใจแบ่งซื้อ ต้องการสอบถามราคา หรือช่วงเวลาที่สะดวกรับสาย', isAppt:false, isDocs:false, isReport:false, doneTitle:'รับข้อมูลเรียบร้อยแล้ว', doneMsg:'คุณทรายได้รับข้อมูลแล้วและจะติดต่อกลับโดยเร็วที่สุด' },
+      interest:{ title:'ให้คุณทรายติดต่อกลับ', subtitle:'ฝากข้อมูลไว้ คุณทรายจะติดต่อกลับเพื่อให้รายละเอียดแปลงนี้โดยตรง', cta:'ส่งข้อมูลให้ติดต่อกลับ', notePlaceholder:'เช่น สนใจแบ่งซื้อ ต้องการสอบถามราคา หรือช่วงเวลาที่สะดวกรับสาย', isAppt:false, isDocs:false, isReport:false, doneTitle:'รับข้อมูลเรียบร้อยแล้ว', doneMsg:'ระบบบันทึกคำขอของคุณแล้ว หากต้องการติดต่อเร่งด่วน โทร 097-428-7891' },
       appt:{ title:'นัดเข้าดูที่ดิน', subtitle:'กรอกข้อมูลเพื่อนัดหมายเข้าชมแปลงที่ดินกับผู้ขาย', cta:'ส่งคำขอนัดดู', notePlaceholder:'เช่น สะดวกช่วงบ่าย หรือขอให้พาชมแนวเขต', isAppt:true, isDocs:false, isReport:false, doneTitle:'ส่งคำขอนัดดูแล้ว', doneMsg:'ทีมงานทรายทองพัฒนาจะติดต่อกลับเพื่อยืนยันวันและเวลานัดหมายโดยเร็ว' },
       docs:{ title:'ขอเอกสารเพิ่มเติม', subtitle:'เลือกเอกสารที่ต้องการ แล้วกรอกข้อมูลติดต่อกลับ', cta:'ส่งคำขอเอกสาร', notePlaceholder:'ระบุเอกสารอื่น ๆ ที่ต้องการเพิ่มเติม', isAppt:false, isDocs:true, isReport:false, doneTitle:'ส่งคำขอเอกสารแล้ว', doneMsg:'ผู้ขายจะจัดส่งสำเนาเอกสารที่คุณเลือกให้ทางช่องทางที่ติดต่อไว้' },
       report:{ title:'รายงานประกาศนี้', subtitle:'แจ้งปัญหาที่พบเพื่อให้ทีมงานตรวจสอบ', cta:'ส่งรายงาน', notePlaceholder:'อธิบายรายละเอียดเพิ่มเติม (ถ้ามี)', isAppt:false, isDocs:false, isReport:true, doneTitle:'รับเรื่องแล้ว ขอบคุณครับ', doneMsg:'ทีมงานจะตรวจสอบประกาศนี้และดำเนินการตามความเหมาะสมโดยเร็วที่สุด' }
@@ -930,23 +724,23 @@
         return '<button ' + click((function (val) { return function () { toggleDoc(val); }; })(dv)) + ' style="border:1px solid ' + (on ? '#1F4A34' : '#E0DBD0') + ';background:' + (on ? '#1F4A34' : '#fff') + ';color:' + (on ? '#fff' : '#4A5047') + ';border-radius:20px;padding:8px 14px;font-size:16.3px;font-weight:500;cursor:pointer">' + esc(dv) + '</button>';
       }).join('') + '</div>' : '';
 
-      var apptDate = c.isAppt ? '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">วันที่สะดวกนัดดู</label><input type="date" min="' + new Date().toISOString().slice(0,10) + '" data-fk="cDate" value="' + attr(state.cDate) + '" ' + oninput(function (e) { set({ cDate: e.target.value }); }) + ' style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;color:#3B4038"></div>' : '';
+      var apptDate = c.isAppt ? '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">วันที่สะดวกนัดดู</label><input type="date" min="' + core.todayLocal() + '" data-fk="cDate" value="' + attr(state.cDate) + '" ' + oninput(function (e) { updateContact('cDate', e.target.value); }) + ' style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;color:#3B4038"></div>' : '';
 
       body = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><h2 style="font-family:\'Noto Serif Thai\',serif;font-size:28.6px;font-weight:700;margin:0;color:#1B2019">' + esc(c.title) + '</h2><button ' + click(closeContact) + ' style="width:38px;height:38px;border-radius:10px;background:#F1F0EA;border:none;cursor:pointer;font-size:26px;color:#4A5047">×</button></div>' +
         '<p style="font-size:17.6px;color:#8A8F84;margin:0 0 20px;line-height:1.5">' + esc(c.subtitle) + '</p>' +
         '<div style="display:flex;gap:12px;align-items:center;background:#F7F5F0;border-radius:12px;padding:12px 14px;margin-bottom:20px"><div style="width:40px;height:40px;border-radius:9px;overflow:hidden;background:#E4EAE1;flex:none"><img src="' + attr(galleryImgs(a)[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div><div style="min-width:0"><div style="font-size:17.6px;font-weight:600;color:#1B2019;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(a.title) + '</div><div style="font-size:16.3px;color:#1F4A34;font-weight:600">฿' + fmt(a.price) + ' · ' + esc(a.sizeText) + '</div></div></div>' +
         reasons + docs +
-        '<div style="display:flex;flex-direction:column;gap:12px"><div class="contact-primary-fields" style="display:flex;gap:12px"><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ชื่อของคุณ *</label><input data-fk="cName" maxlength="120" autocomplete="name" value="' + attr(state.cName) + '" ' + oninput(function (e) { set({ cName: e.target.value, contactErr: false, contactErrorMessage:'' }); }) + ' placeholder="ชื่อ-นามสกุล" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">เบอร์โทร *</label><input data-fk="cPhone" inputmode="tel" maxlength="40" autocomplete="tel" value="' + attr(state.cPhone) + '" ' + oninput(function (e) { set({ cPhone: e.target.value, contactErr: false, contactErrorMessage:'' }); }) + ' placeholder="08x-xxx-xxxx" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div></div>' +
-        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">LINE ID <span style="font-weight:400;color:#8A8F84">(ถ้ามี)</span></label><input data-fk="cLine" maxlength="100" autocomplete="off" value="' + attr(state.cLine) + '" ' + oninput(function (e) { set({ cLine: e.target.value }); }) + ' placeholder="เช่น saithong123" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div>' +
+        '<div style="display:flex;flex-direction:column;gap:12px"><div class="contact-primary-fields" style="display:flex;gap:12px"><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ชื่อของคุณ *</label><input data-fk="cName" maxlength="120" autocomplete="name" value="' + attr(state.cName) + '" ' + oninput(function (e) { updateContact('cName', e.target.value); }) + ' placeholder="ชื่อ-นามสกุล" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div><div style="flex:1"><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">เบอร์โทร *</label><input data-fk="cPhone" inputmode="tel" maxlength="40" autocomplete="tel" value="' + attr(state.cPhone) + '" ' + oninput(function (e) { updateContact('cPhone', e.target.value); }) + ' placeholder="08x-xxx-xxxx" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div></div>' +
+        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">LINE ID <span style="font-weight:400;color:#8A8F84">(ถ้ามี)</span></label><input data-fk="cLine" maxlength="100" autocomplete="off" value="' + attr(state.cLine) + '" ' + oninput(function (e) { updateContact('cLine', e.target.value); }) + ' placeholder="เช่น saithong123" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none"></div>' +
         apptDate +
-        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ข้อความถึงผู้ขาย</label><textarea data-fk="cNote" maxlength="2000" ' + oninput(function (e) { set({ cNote: e.target.value }); }) + ' rows="3" placeholder="' + attr(c.notePlaceholder) + '" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;resize:vertical;font-family:inherit">' + esc(state.cNote) + '</textarea></div>' +
-        '<div class="contact-honeypot" aria-hidden="true"><label>เว็บไซต์<input tabindex="-1" autocomplete="off" data-fk="cWebsite" value="' + attr(state.cWebsite) + '" ' + oninput(function (e) { set({ cWebsite:e.target.value }); }) + '></label></div>' +
+        '<div><label style="display:block;font-size:16.3px;font-weight:600;color:#3B4038;margin-bottom:5px">ข้อความถึงผู้ขาย</label><textarea data-fk="cNote" maxlength="2000" ' + oninput(function (e) { updateContact('cNote', e.target.value); }) + ' rows="3" placeholder="' + attr(c.notePlaceholder) + '" style="width:100%;box-sizing:border-box;border:1px solid #E0DBD0;border-radius:10px;padding:11px 13px;font-size:18.2px;outline:none;resize:vertical;font-family:inherit">' + esc(state.cNote) + '</textarea></div>' +
+        '<div class="contact-honeypot" aria-hidden="true"><label>เว็บไซต์<input tabindex="-1" autocomplete="off" data-fk="cWebsite" value="' + attr(state.cWebsite) + '" ' + oninput(function (e) { updateContact('cWebsite', e.target.value); }) + '></label></div>' +
         '<label class="contact-consent"><input type="checkbox" ' + (state.contactConsent ? 'checked ' : '') + onchange(function (e) { set({ contactConsent:e.target.checked, contactErr:false, contactErrorMessage:'' }); }) + '><span>ยินยอมให้ทรายทองพัฒนาใช้ข้อมูลนี้เพื่อติดต่อกลับเกี่ยวกับที่ดินที่สนใจ</span></label></div>' +
         (state.contactErr ? '<div class="contact-error" role="alert">' + esc(state.contactErrorMessage || 'กรุณาตรวจสอบข้อมูลอีกครั้ง') + '</div>' : '') +
         '<button ' + click(submitContact) + ' class="btn-dark contact-submit" ' + (state.contactSubmitting ? 'disabled' : '') + '>' + (state.contactSubmitting ? 'กำลังส่งข้อมูล…' : esc(c.cta)) + '</button>';
     }
 
-    return '<div ' + click(closeContact) + ' style="position:fixed;inset:0;z-index:78;background:rgba(20,31,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto"><div ' + click(function (e) { e.stopPropagation(); }) + ' style="background:#fff;border-radius:20px;max-width:480px;width:100%;padding:28px 30px 30px">' + body + '</div></div>';
+    return '<div class="contact-overlay modal-layer" ' + click(closeContact) + ' style="position:fixed;inset:0;z-index:78;background:rgba(20,31,24,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow:auto"><div ' + click(function (e) { e.stopPropagation(); }) + ' style="background:#fff;border-radius:20px;max-width:480px;width:100%;padding:28px 30px 30px">' + body + '</div></div>';
   }
 
   function lightbox() {
@@ -954,7 +748,7 @@
     var imgs = galleryImgs(activeListing());
     var multi = imgs.length > 1;
     var nav = multi ? '<button ' + click(function (e) { e.stopPropagation(); lbStep(-1); }) + ' aria-label="ก่อนหน้า" style="position:absolute;left:26px;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg></button><button ' + click(function (e) { e.stopPropagation(); lbStep(1); }) + ' aria-label="ถัดไป" style="position:absolute;right:26px;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.14);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg></button>' : '';
-    return '<div ' + click(closeLightbox) + ' style="position:fixed;inset:0;z-index:82;background:rgba(12,20,15,.92);display:flex;align-items:center;justify-content:center;padding:40px">' +
+    return '<div class="lightbox-overlay modal-layer" role="dialog" aria-modal="true" aria-label="รูปภาพที่ดิน" tabindex="-1" ' + click(closeLightbox) + ' style="position:fixed;inset:0;z-index:82;background:rgba(12,20,15,.92);display:flex;align-items:center;justify-content:center;padding:40px">' +
       '<button ' + click(closeLightbox) + ' aria-label="ปิด" style="position:absolute;top:22px;right:26px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.14);border:none;color:#fff;font-size:31.2px;cursor:pointer">×</button>' +
       nav +
       '<img ' + click(function (e) { e.stopPropagation(); }) + ' src="' + attr(imgs[state.lightbox]) + '" alt="" style="max-width:90vw;max-height:84vh;object-fit:contain;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5)">' +
@@ -966,12 +760,80 @@
     return '';
   }
 
+  function dataNotice() {
+    if (state.dataStatus === 'ready') return '';
+    if (state.dataStatus === 'loading') return '<div class="data-notice" role="status">กำลังตรวจสอบประกาศล่าสุด…</div>';
+    return '<div class="data-notice is-offline" role="status"><span>โหลดข้อมูลล่าสุดไม่ได้ ข้อมูลที่แสดงอาจเปลี่ยนแปลง โปรดโทรยืนยันกับคุณทราย</span><a href="tel:0974287891">097-428-7891</a><button ' + click(loadRemoteListings) + '>ลองอีกครั้ง</button></div>';
+  }
+
+  function focusableElements(scope) {
+    return Array.from(scope.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]')).filter(function(el) {
+      return !el.disabled && el.tabIndex >= 0 && el.getClientRects().length && !el.closest('[inert]');
+    });
+  }
+
+  function enhanceAccessibility() {
+    var main = app.querySelector('main');
+    if (main) { main.id = 'main-content'; main.tabIndex = -1; }
+    app.querySelectorAll('svg').forEach(function(svg) { svg.setAttribute('aria-hidden','true'); svg.setAttribute('focusable','false'); });
+    app.querySelectorAll('button').forEach(function(button) {
+      button.type = 'button';
+      if (button.textContent.trim() === '×' && !button.getAttribute('aria-label')) button.setAttribute('aria-label','ปิดหน้าต่าง');
+    });
+    app.querySelectorAll('.search-field').forEach(function(field, index) {
+      var select = field.querySelector('select');
+      select.setAttribute('aria-label', field.firstElementChild.textContent.trim());
+      select.dataset.fk = 'search-' + index;
+    });
+    app.querySelectorAll('.contact-overlay input[data-fk],.contact-overlay textarea').forEach(function(input) {
+      input.id = 'contact-' + input.dataset.fk;
+      var label = input.previousElementSibling;
+      if (label && label.tagName === 'LABEL') label.htmlFor = input.id;
+      if (input.dataset.fk === 'cName') { input.required = true; input.minLength = 2; }
+      if (input.dataset.fk === 'cPhone') { input.type = 'tel'; input.required = true; }
+      if (input.dataset.fk === 'cDate') input.required = true;
+    });
+    app.querySelectorAll('.gallery [data-click]').forEach(function(el,index) {
+      el.setAttribute('role','button'); el.tabIndex = 0;
+      el.setAttribute('aria-label','ดูรูปที่ดิน ' + (index + 1));
+    });
+    app.querySelectorAll('.gallery img,.land-card img').forEach(function(img) {
+      var card = img.closest('.land-card');
+      img.alt = card ? card.querySelector('h3').textContent : activeListing().title;
+      img.decoding = 'async';
+      if (img.closest('.land-card')) img.loading = 'lazy';
+    });
+    app.querySelectorAll('.land-card').forEach(function(card) {
+      var name = card.querySelector('h3').textContent;
+      var fav = card.querySelector('button[aria-label="บันทึก"]');
+      if (fav) { var listing = state.listings.find(function(l) { return l.title === name; }); fav.setAttribute('aria-pressed', String(!!listing && state.favs.includes(listing.id))); }
+    });
+    var modal = app.querySelector('.contact-overlay > div,.compare-overlay > div,.lightbox-overlay');
+    if (modal) {
+      modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.tabIndex = -1;
+      var heading = modal.querySelector('h2');
+      if (heading) { heading.id = 'dialog-title'; modal.setAttribute('aria-labelledby','dialog-title'); }
+      if (state.contactSubmitting) modal.querySelectorAll('input,textarea,button').forEach(function(el) { el.disabled = true; });
+      Array.from(app.firstElementChild.children).forEach(function(el) { if (!el.classList.contains('modal-layer')) el.inert = true; });
+    }
+    document.body.classList.toggle('has-modal', !!modal);
+    var keys = {};
+    app.querySelectorAll('a[href],button,input,select,textarea,[tabindex="0"]').forEach(function(el) {
+      var group = el.closest('.contact-overlay') ? 'contact' : el.closest('.compare-overlay') ? 'compare' : el.closest('.lightbox-overlay') ? 'lightbox' : 'page';
+      keys[group] = (keys[group] || 0) + 1;
+      el.dataset.focusKey = group + '-' + keys[group];
+    });
+    return modal;
+  }
+
   /* ------------------------------------------------------------------ *
    * Render loop
    * ------------------------------------------------------------------ */
   function render() {
     // capture focus before we replace innerHTML
     var act = document.activeElement, fk = null, ss = null, se = null;
+    var oldModal = app.querySelector('[aria-modal="true"]');
+    var focusKey = act && act.dataset ? act.dataset.focusKey : null;
     if (act && act.dataset && act.dataset.fk) {
       fk = act.dataset.fk;
       try { ss = act.selectionStart; se = act.selectionEnd; } catch (e) {}
@@ -980,24 +842,42 @@
     H = [];
     var main;
     if (state.page === 'detail') main = detail();
-    else if (state.page === 'admin') main = state.authed ? adminPanel() : adminLogin();
     else main = home();
 
     app.innerHTML =
       '<div style="min-height:100vh">' +
-        header() + main + footer() +
-        compareBar() + advisorWidget() + compareModal() + editModal() + reviewModal() + contactModal() + lightbox() +
+        '<a class="skip-link" href="#main-content">ข้ามไปเนื้อหา</a>' + header() + dataNotice() + main + footer() +
+        compareBar() + advisorWidget() + compareModal() + contactModal() + lightbox() +
         switcher() +
       '</div>';
+
+    var modal = enhanceAccessibility();
+    updateAdvisorVisibility();
+    if (modal && !oldModal) modalOpener = focusKey;
+    function focusKeyElement(key) {
+      var target = Array.from(app.querySelectorAll('[data-focus-key]')).find(function(el) { return el.dataset.focusKey === key; });
+      if (target && !target.closest('[inert]')) target.focus({preventScroll:true});
+    }
+    if (modal && !oldModal) modal.focus({preventScroll:true});
+    else if (!modal && oldModal) { focusKeyElement(modalOpener); modalOpener = null; }
+    else if (focusKey) focusKeyElement(focusKey);
 
     // restore focus
     if (fk) {
       var el = app.querySelector('[data-fk="' + (window.CSS && CSS.escape ? CSS.escape(fk) : fk) + '"]');
-      if (el) { el.focus(); if (ss != null && el.setSelectionRange) { try { el.setSelectionRange(ss, se); } catch (e) {} } }
+      if (el && !el.closest('[inert]')) { el.focus({preventScroll:true}); if (ss != null && el.setSelectionRange) { try { el.setSelectionRange(ss, se); } catch (e) {} } }
     }
+    document.title = state.page === 'detail' && state.listings.some(function(l) { return l.id === state.activeId; }) ? activeListing().title + ' · ทรายทองพัฒนา' : 'ซื้อขายที่ดินปทุมธานี · ทรายทองพัฒนา';
   }
 
   /* delegated events */
+  function updateAdvisorVisibility() {
+    var widget = app.querySelector('.advisor-widget');
+    var hero = app.querySelector('.hero-search');
+    if (widget) widget.hidden = !!(window.innerWidth <= 620 && hero && hero.getBoundingClientRect().bottom > 0 && !state.advisorOpen);
+  }
+  window.addEventListener('scroll', updateAdvisorVisibility, {passive:true});
+  window.addEventListener('resize', updateAdvisorVisibility);
   app.addEventListener('click', function (e) {
     var t = e.target.closest('[data-click]'); if (t && app.contains(t)) { var f = H[+t.dataset.click]; if (f) f(e); }
   });
@@ -1008,21 +888,33 @@
     var t = e.target.closest('[data-change]'); if (t) { var f = H[+t.dataset.change]; if (f) f(e); }
   });
   app.addEventListener('keydown', function (e) {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.gallery [role="button"]')) { e.preventDefault(); e.target.click(); return; }
+    if (e.key === 'Enter' && e.target.matches('.contact-overlay input:not([type="checkbox"]):not([type="radio"])')) { e.preventDefault(); submitContact(); return; }
     var t = e.target.closest('[data-keydown]'); if (t) { var f = H[+t.dataset.keydown]; if (f) f(e); }
   });
   // Esc closes any open overlay
   document.addEventListener('keydown', function (e) {
+    var modal = app.querySelector('[aria-modal="true"]');
+    if (e.key === 'Tab' && modal) {
+      var items = focusableElements(modal), first = items[0], last = items[items.length - 1];
+      if (!first) { e.preventDefault(); modal.focus(); return; }
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === modal)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || document.activeElement === modal)) { e.preventDefault(); first.focus(); }
+    }
+    if (state.lightbox >= 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); lbStep(e.key === 'ArrowLeft' ? -1 : 1); return; }
     if (e.key !== 'Escape') return;
     if (state.lightbox >= 0) return closeLightbox();
     if (state.contactType) return closeContact();
-    if (state.editing) return closeEdit();
-    if (state.reviewEditing) return closeReview();
     if (state.showCompareModal) return set({ showCompareModal: false });
+    if (state.advisorOpen) return set({advisorOpen:false});
   });
+  window.addEventListener('popstate', readRoute);
+  window.addEventListener('hashchange', function() { if (window.location.hash !== '#main-content') readRoute(); });
 
   /* boot */
-  state.listings = loadListings();
-  state.reviews = loadReviews();
-  render();
+  state.listings = defaults();
+  state.reviews = defaultReviews();
+  try { var saved = JSON.parse(localStorage.getItem('ttp_favorites_v1') || '[]'); if (Array.isArray(saved)) state.favs = saved.filter(function(id) { return typeof id === 'string'; }); } catch (error) {}
+  readRoute();
   loadRemoteListings();
 })();
